@@ -1,0 +1,40 @@
+# Development app configuration: a SEPARATE app in the Dev Dashboard, so
+# experiments never touch production. `pnpm app:start:dev` keeps the URLs
+# pointed at the dev tunnel; push config changes (scopes, webhook topics)
+# with: pnpm app:deploy:dev
+
+client_id = ""
+name = "Go App Template (dev)"
+handle = "go-app-template-dev"
+application_url = "https://example.com"
+embedded = true
+
+[access_scopes]
+scopes = "read_products"
+
+[auth]
+redirect_urls = []
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled", "app/scopes_update"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "/webhooks"
+
+[app_proxy]
+url = "https://example.com/proxy"
+subpath = "go-app-template"
+prefix = "apps"
+
+[pos]
+embedded = false
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = true

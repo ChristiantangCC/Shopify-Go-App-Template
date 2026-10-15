@@ -1,0 +1,8 @@
+# Tells `shopify app dev` how to run this app. The CLI owns the tunnel,
+# dev-store selection, install and the p/g hotkeys; scripts/app-dev.sh
+# receives the tunnel URL and credentials as env vars and starts the stack.
+name = "app"
+roles = ["frontend", "backend"]
+
+[commands]
+dev = "bash scripts/app-dev.sh"

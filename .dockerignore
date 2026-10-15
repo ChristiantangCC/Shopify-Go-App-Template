@@ -1,0 +1,5 @@
+.env
+.git
+/server
+web/frontend/node_modules
+.shopify

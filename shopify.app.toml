@@ -1,0 +1,42 @@
+# Production app configuration. Deploy changes with:
+#   shopify app deploy
+# Dev work uses shopify.app.dev.toml (a separate app), never this file.
+# Docs: https://shopify.dev/docs/apps/build/cli-for-apps/app-configuration
+
+client_id = ""
+name = "Go App Template"
+handle = "go-app-template"
+application_url = "https://example.com"
+embedded = true
+
+[access_scopes]
+scopes = "read_products"
+
+[auth]
+redirect_urls = []
+
+[webhooks]
+api_version = "2026-07"
+
+  # App-specific subscriptions: SourceToml topics from the registry
+  # (internal/shopify/webhooks/registry.go). URIs are relative to
+  # application_url. Dynamic topics are NOT listed here; the app creates
+  # them per shop through the Admin API.
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled", "app/scopes_update"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "/webhooks"
+
+[app_proxy]
+url = "https://example.com/proxy"
+subpath = "go-app-template"
+prefix = "apps"
+
+[pos]
+embedded = false
+
+[build]
+include_config_on_deploy = true

@@ -1,0 +1,16 @@
+{
+  "name": "shopify-go-app-template",
+  "private": true,
+  "scripts": {
+    "app:start:dev": "shopify app dev --config dev",
+    "dev": "shopify app dev --config dev",
+    "new-app": "bash scripts/new-app.sh",
+    "app:deploy:dev": "shopify app deploy --config dev",
+    "app:deploy:prod": "shopify app deploy",
+    "frontend:dev": "pnpm --dir web/frontend dev",
+    "frontend:build": "pnpm --dir web/frontend build",
+    "typecheck": "pnpm --dir web/frontend typecheck",
+    "test": "go test ./...",
+    "db:up": "docker compose up -d --wait postgres"
+  }
+}
