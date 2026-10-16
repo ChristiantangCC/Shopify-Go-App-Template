@@ -26,12 +26,12 @@ func (h ListProducts) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	variables := map[string]any{"first": 20}
-	if after := r.URL.Query().Get("after"); after != "" {
-		variables["after"] = after
+	var after *string
+	if cursor := r.URL.Query().Get("after"); cursor != "" {
+		after = &cursor
 	}
-	var res graphql.ProductsListResponse
-	if err := h.Admin.Do(r.Context(), shop, graphql.ProductsList, variables, &res); err != nil {
+	res, err := graphql.ProductsList(r.Context(), h.Admin.ForShop(shop), 20, after)
+	if err != nil {
 		failAdmin(w, h.Logger, err)
 		return
 	}
@@ -45,11 +45,21 @@ func (h ListProducts) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	products := make([]product, 0, len(res.Products.Edges))
 	for _, edge := range res.Products.Edges {
-		products = append(products, product(edge.Node))
+		products = append(products, product{
+			ID:             edge.Node.Id,
+			Title:          edge.Node.Title,
+			Handle:         edge.Node.Handle,
+			Status:         string(edge.Node.Status),
+			TotalInventory: edge.Node.TotalInventory,
+		})
+	}
+	endCursor := ""
+	if res.Products.PageInfo.EndCursor != nil {
+		endCursor = *res.Products.PageInfo.EndCursor
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"products":    products,
 		"hasNextPage": res.Products.PageInfo.HasNextPage,
-		"endCursor":   res.Products.PageInfo.EndCursor,
+		"endCursor":   endCursor,
 	})
 }

@@ -2,3 +2,5 @@
 /server
 node_modules/
 .shopify/
+# Fetched by `pnpm codegen`; the generated Go is committed, the schema is not.
+internal/shopify/graphql/schema.graphql

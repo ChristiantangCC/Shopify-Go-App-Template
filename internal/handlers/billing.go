@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/graphql"
@@ -31,8 +32,8 @@ func (h BillingStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var res graphql.ActiveSubscriptionsResponse
-	if err := h.Admin.Do(r.Context(), session.Shop, graphql.ActiveSubscriptions, nil, &res); err != nil {
+	res, err := graphql.ActiveSubscriptions(r.Context(), h.Admin.ForShop(session.Shop))
+	if err != nil {
 		failAdmin(w, h.Logger, err)
 		return
 	}
@@ -46,7 +47,11 @@ func (h BillingStatus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	subscriptions := make([]subscription, 0, len(res.CurrentAppInstallation.ActiveSubscriptions))
 	for _, sub := range res.CurrentAppInstallation.ActiveSubscriptions {
-		subscriptions = append(subscriptions, subscription(sub))
+		entry := subscription{ID: sub.Id, Name: sub.Name, Status: string(sub.Status), Test: sub.Test}
+		if sub.CurrentPeriodEnd != nil {
+			entry.CurrentPeriodEnd = sub.CurrentPeriodEnd.Format(time.RFC3339)
+		}
+		subscriptions = append(subscriptions, entry)
 	}
 
 	body := map[string]any{"subscriptions": subscriptions}

@@ -16,6 +16,8 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/logging"
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/tokens"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/webhooks"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
@@ -30,11 +32,13 @@ const webhookDeliveryRetention = 72 * time.Hour
 // before the keep-alive job rotates the pair.
 const refreshAhead = 7 * 24 * time.Hour
 
-// WebhookArgs processes one verified webhook delivery.
+// WebhookArgs processes one verified webhook delivery. RequestID is the
+// intake request's id, so the HTTP log line and the job's log line connect.
 type WebhookArgs struct {
 	Shop      string          `json:"shop"`
 	Topic     string          `json:"topic"`
 	WebhookID string          `json:"webhook_id"`
+	RequestID string          `json:"request_id"`
 	Payload   json.RawMessage `json:"payload"`
 }
 
@@ -54,6 +58,7 @@ func (w *WebhookWorker) Work(ctx context.Context, job *river.Job[WebhookArgs]) e
 		w.deps.Logger.Warn("[Jobs] No handler for topic", "topic", job.Args.Topic)
 		return nil
 	}
+	w.deps.Logger.Info("[Jobs] Webhook delivery", "topic", job.Args.Topic, "shop", job.Args.Shop, "req", logging.ShortID(job.Args.RequestID), "attempt", job.Attempt)
 	return registration.Handle(ctx, w.deps, webhooks.Delivery{
 		Shop:      job.Args.Shop,
 		Topic:     job.Args.Topic,
@@ -139,6 +144,7 @@ func (w *PruneWebhookDeliveriesWorker) Work(ctx context.Context, job *river.Job[
 type Options struct {
 	Pool       *pgxpool.Pool
 	Store      *store.Store
+	Admin      *admin.Client
 	Tokens     *tokens.Service
 	Subscriber *webhooks.Subscriber
 	Logger     *slog.Logger
@@ -148,13 +154,15 @@ type Options struct {
 // registered. The caller starts it with Start and stops it on shutdown.
 func NewClient(opts Options) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &WebhookWorker{deps: webhooks.Deps{Store: opts.Store, Logger: opts.Logger}})
+	river.AddWorker(workers, &WebhookWorker{deps: webhooks.Deps{Store: opts.Store, Admin: opts.Admin, Logger: opts.Logger}})
 	river.AddWorker(workers, &SyncWebhooksWorker{subscriber: opts.Subscriber})
 	river.AddWorker(workers, &TokenKeepAliveWorker{store: opts.Store, tokens: opts.Tokens, logger: opts.Logger})
 	river.AddWorker(workers, &PruneWebhookDeliveriesWorker{pool: opts.Pool, logger: opts.Logger})
 
 	client, err := river.NewClient(riverpgxv5.New(opts.Pool), &river.Config{
-		Logger: opts.Logger,
+		// River's own bookkeeping (producer counts, leadership) logs at
+		// INFO every few seconds; warnings and errors still get through.
+		Logger: logging.WithMinLevel(opts.Logger, slog.LevelWarn),
 		Queues: map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: 10},
 		},

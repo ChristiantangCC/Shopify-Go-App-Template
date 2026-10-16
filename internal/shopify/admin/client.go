@@ -116,9 +116,10 @@ func (e *transientError) Error() string { return e.err.Error() }
 func (e *transientError) Unwrap() error { return e.err }
 
 // Do runs a GraphQL operation against the shop and decodes `data` into out
-// (out may be nil). Top-level GraphQL errors come back as GraphQLErrors;
-// userErrors stay the caller's job.
-func (c *Client) Do(ctx context.Context, shop, query string, variables map[string]any, out any) error {
+// (out may be nil). variables is anything that marshals to a JSON object:
+// a map, or a generated operation's input struct. Top-level GraphQL errors
+// come back as GraphQLErrors; userErrors stay the caller's job.
+func (c *Client) Do(ctx context.Context, shop, query string, variables any, out any) error {
 	retrySafe := isRetrySafe(query)
 	throttleRetries, transientRetries := 0, 0
 	authRetried := false
@@ -170,7 +171,7 @@ func (c *Client) Do(ctx context.Context, shop, query string, variables map[strin
 	}
 }
 
-func (c *Client) send(ctx context.Context, shop, token, query string, variables map[string]any) (*graphqlResponse, error) {
+func (c *Client) send(ctx context.Context, shop, token, query string, variables any) (*graphqlResponse, error) {
 	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
 	if err != nil {
 		return nil, err

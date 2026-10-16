@@ -23,6 +23,14 @@ type Shop struct {
 	UpdatedAt             time.Time
 }
 
+type ShopSetting struct {
+	ShopDomain        string
+	NotificationEmail string
+	SyncEnabled       bool
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type WebhookDelivery struct {
 	WebhookID  string
 	ShopDomain string

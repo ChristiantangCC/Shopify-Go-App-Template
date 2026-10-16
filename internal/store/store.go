@@ -132,6 +132,39 @@ func (s *Store) ListShopsWithExpiringRefreshTokens(ctx context.Context, before t
 	return shops, nil
 }
 
+// Settings are the per-shop settings the Settings page edits. A shop
+// without a row gets the defaults.
+type Settings struct {
+	NotificationEmail string `json:"notificationEmail"`
+	SyncEnabled       bool   `json:"syncEnabled"`
+}
+
+// GetSettings returns the shop's settings, or the defaults when none were
+// saved yet.
+func (s *Store) GetSettings(ctx context.Context, shop string) (Settings, error) {
+	row, err := s.q.GetShopSettings(ctx, shop)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Settings{SyncEnabled: true}, nil
+	}
+	if err != nil {
+		return Settings{}, fmt.Errorf("store: %w", err)
+	}
+	return Settings{NotificationEmail: row.NotificationEmail, SyncEnabled: row.SyncEnabled}, nil
+}
+
+// SaveSettings upserts the shop's settings.
+func (s *Store) SaveSettings(ctx context.Context, shop string, settings Settings) (Settings, error) {
+	row, err := s.q.UpsertShopSettings(ctx, storegen.UpsertShopSettingsParams{
+		ShopDomain:        shop,
+		NotificationEmail: settings.NotificationEmail,
+		SyncEnabled:       settings.SyncEnabled,
+	})
+	if err != nil {
+		return Settings{}, fmt.Errorf("store: %w", err)
+	}
+	return Settings{NotificationEmail: row.NotificationEmail, SyncEnabled: row.SyncEnabled}, nil
+}
+
 // LockedShop works on one shop's row inside a transaction that holds the
 // shop's advisory lock.
 type LockedShop struct {

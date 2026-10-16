@@ -20,7 +20,7 @@ put() {
 
 # Persist what the CLI handed us, so workers, tests and scripts that run
 # outside `shopify app dev` see the same values.
-put HOST "${HOST:?missing HOST, run this through: pnpm app:start:dev}"
+put HOST "${HOST:?missing HOST, run this through: bun run app:start:dev}"
 put SHOPIFY_CLIENT_ID "${SHOPIFY_API_KEY:?missing SHOPIFY_API_KEY}"
 put SHOPIFY_CLIENT_SECRET "${SHOPIFY_API_SECRET:?missing SHOPIFY_API_SECRET}"
 [ -n "$(get ENCRYPTION_KEY)" ] || put ENCRYPTION_KEY "$(openssl rand -hex 32)"
@@ -47,18 +47,22 @@ if [ -z "$(get DATABASE_URL)" ] || get DATABASE_URL | grep -q '^postgres://postg
 fi
 
 # Vite for frontend hot reload; the Go server proxies HTML to it.
-[ -d web/frontend/node_modules ] || (cd web/frontend && pnpm install)
-(cd web/frontend && exec pnpm dev >/dev/null 2>&1) &
+command -v bun >/dev/null || { echo "Missing: bun (https://bun.sh)"; exit 1; }
+[ -d node_modules ] || bun install
+(cd web/frontend && exec bun run dev >/dev/null 2>&1) &
 vite_pid=$!
 trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
 
-# The Go server must listen on the port the CLI proxies the tunnel to.
-DATABASE_URL="$(get DATABASE_URL)" \
-ENCRYPTION_KEY="$(get ENCRYPTION_KEY)" \
+# The server gets everything from .env (BILLING_ENABLED, API keys, log
+# levels, whatever you add), with the CLI-provided values on top. It must
+# listen on the port the CLI proxies the tunnel to.
+set -a
+source .env
+set +a
 SHOPIFY_CLIENT_ID="$SHOPIFY_API_KEY" \
 SHOPIFY_CLIENT_SECRET="$SHOPIFY_API_SECRET" \
 HOST="$HOST" \
 PORT="${PORT:-8080}" \
 FRONTEND_DEV_URL="http://localhost:5173" \
-LOG_FORMAT=text \
+LOG_FORMAT="${LOG_FORMAT:-text}" \
   go run ./cmd/server

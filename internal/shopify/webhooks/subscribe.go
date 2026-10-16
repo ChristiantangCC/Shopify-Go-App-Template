@@ -138,16 +138,20 @@ type subscription struct {
 }
 
 func (s *Subscriber) list(ctx context.Context, shop string) ([]subscription, error) {
+	client := s.admin.ForShop(shop)
 	var subs []subscription
-	after := any(nil)
+	var after *string
 	for {
-		var res graphql.WebhookSubscriptionsListResponse
-		err := s.admin.Do(ctx, shop, graphql.WebhookSubscriptionsList, map[string]any{"first": 100, "after": after}, &res)
+		res, err := graphql.WebhookSubscriptionsList(ctx, client, 100, after)
 		if err != nil {
 			return nil, fmt.Errorf("webhooks: list: %w", err)
 		}
 		for _, edge := range res.WebhookSubscriptions.Edges {
-			subs = append(subs, subscription{id: edge.Node.ID, topic: edge.Node.Topic, callbackURL: edge.Node.Endpoint.CallbackURL})
+			sub := subscription{id: edge.Node.Id, topic: string(edge.Node.Topic)}
+			if endpoint, ok := edge.Node.Endpoint.(*graphql.WebhookSubscriptionEndpointWebhookHttpEndpoint); ok {
+				sub.callbackURL = endpoint.CallbackUrl
+			}
+			subs = append(subs, sub)
 		}
 		if !res.WebhookSubscriptions.PageInfo.HasNextPage {
 			return subs, nil
@@ -157,37 +161,34 @@ func (s *Subscriber) list(ctx context.Context, shop string) ([]subscription, err
 }
 
 func (s *Subscriber) create(ctx context.Context, shop, topicEnum string) error {
-	var res graphql.WebhookSubscriptionCreateResponse
-	err := s.admin.Do(ctx, shop, graphql.WebhookSubscriptionCreate, map[string]any{"topic": topicEnum, "callbackUrl": s.callbackURL()}, &res)
+	res, err := graphql.WebhookSubscriptionCreate(ctx, s.admin.ForShop(shop), graphql.WebhookSubscriptionTopic(topicEnum), s.callbackURL())
 	if err != nil {
 		return fmt.Errorf("webhooks: create %s: %w", topicEnum, err)
 	}
-	if len(res.WebhookSubscriptionCreate.UserErrors) > 0 {
-		return fmt.Errorf("webhooks: create %s: %s", topicEnum, res.WebhookSubscriptionCreate.UserErrors[0].Message)
+	if errs := res.WebhookSubscriptionCreate.UserErrors; len(errs) > 0 {
+		return fmt.Errorf("webhooks: create %s: %s", topicEnum, errs[0].Message)
 	}
 	return nil
 }
 
 func (s *Subscriber) update(ctx context.Context, shop, id string) error {
-	var res graphql.WebhookSubscriptionUpdateResponse
-	err := s.admin.Do(ctx, shop, graphql.WebhookSubscriptionUpdate, map[string]any{"id": id, "callbackUrl": s.callbackURL()}, &res)
+	res, err := graphql.WebhookSubscriptionUpdate(ctx, s.admin.ForShop(shop), id, s.callbackURL())
 	if err != nil {
 		return fmt.Errorf("webhooks: update: %w", err)
 	}
-	if len(res.WebhookSubscriptionUpdate.UserErrors) > 0 {
-		return fmt.Errorf("webhooks: update: %s", res.WebhookSubscriptionUpdate.UserErrors[0].Message)
+	if errs := res.WebhookSubscriptionUpdate.UserErrors; len(errs) > 0 {
+		return fmt.Errorf("webhooks: update: %s", errs[0].Message)
 	}
 	return nil
 }
 
 func (s *Subscriber) delete(ctx context.Context, shop, id string) error {
-	var res graphql.WebhookSubscriptionDeleteResponse
-	err := s.admin.Do(ctx, shop, graphql.WebhookSubscriptionDelete, map[string]any{"id": id}, &res)
+	res, err := graphql.WebhookSubscriptionDelete(ctx, s.admin.ForShop(shop), id)
 	if err != nil {
 		return fmt.Errorf("webhooks: delete: %w", err)
 	}
-	if len(res.WebhookSubscriptionDelete.UserErrors) > 0 {
-		return fmt.Errorf("webhooks: delete: %s", res.WebhookSubscriptionDelete.UserErrors[0].Message)
+	if errs := res.WebhookSubscriptionDelete.UserErrors; len(errs) > 0 {
+		return fmt.Errorf("webhooks: delete: %s", errs[0].Message)
 	}
 	return nil
 }

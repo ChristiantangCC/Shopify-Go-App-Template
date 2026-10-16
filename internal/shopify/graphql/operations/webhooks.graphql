@@ -1,0 +1,59 @@
+# Dynamic subscription sync: list what exists, create, repoint, delete.
+
+query WebhookSubscriptionsList($first: Int!, $after: String) {
+  webhookSubscriptions(first: $first, after: $after) {
+    edges {
+      # @genqlient(typename: "WebhookSubscriptionNode")
+      node {
+        id
+        topic
+        # @genqlient(typename: "WebhookSubscriptionEndpoint")
+        endpoint {
+          __typename
+          ... on WebhookHttpEndpoint {
+            callbackUrl
+          }
+        }
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+mutation WebhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $uri: String!) {
+  webhookSubscriptionCreate(topic: $topic, webhookSubscription: {uri: $uri, format: JSON}) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+mutation WebhookSubscriptionUpdate($id: ID!, $uri: String!) {
+  webhookSubscriptionUpdate(id: $id, webhookSubscription: {uri: $uri, format: JSON}) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+mutation WebhookSubscriptionDelete($id: ID!) {
+  webhookSubscriptionDelete(id: $id) {
+    deletedWebhookSubscriptionId
+    userErrors {
+      field
+      message
+    }
+  }
+}

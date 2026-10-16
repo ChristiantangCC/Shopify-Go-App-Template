@@ -1,0 +1,80 @@
+/*
+ * Plan cards. `grid-template-rows: subgrid` makes every card share the
+ * parent's four row bands (header, quota, features, CTA), so each band
+ * starts on the same line across the row and the CTA is pinned to the
+ * bottom of every card. If you change the number of direct children in a
+ * card, change `grid-row: span` and `grid-template-rows` to match.
+ *
+ * Colours come from Polaris custom properties (with fallbacks) so the
+ * cards track the merchant's admin theme.
+ */
+
+.planGrid {
+  display: grid;
+  gap: var(--s-space-base, 1rem);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* `1fr` on features absorbs the slack, so the CTA band lines up. */
+  grid-template-rows: auto auto 1fr auto;
+}
+
+@media (max-width: 1039px) {
+  .planGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 489px) {
+  .planGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+}
+
+.planCard {
+  display: grid;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+  gap: var(--s-space-small, 0.75rem);
+  padding: var(--s-space-base, 1rem);
+  background: var(--s-color-bg-surface, #ffffff);
+  border: var(--s-border-width-base, 1px) solid var(--s-color-border, #e3e3e3);
+  border-radius: var(--s-border-radius-large, 12px);
+}
+
+@media (max-width: 489px) {
+  .planCard {
+    grid-row: auto;
+    grid-template-rows: auto auto 1fr auto;
+  }
+}
+
+/* Band separators as borders: a divider element would be an extra grid
+   child and break the four-band structure. */
+.planQuota,
+.planFeatures {
+  border-block-start: var(--s-border-width-base, 1px) solid var(--s-color-border, #e3e3e3);
+  padding-block-start: var(--s-space-small, 0.75rem);
+}
+
+.planFeatures {
+  align-self: start;
+}
+
+/* A feature row where the TEXT wraps, not the row. */
+.feature {
+  display: flex;
+  gap: var(--s-space-small-400, 0.375rem);
+  align-items: start;
+}
+
+.featureIcon {
+  flex: 0 0 auto;
+}
+
+.featureText {
+  min-inline-size: 0;
+}
+
+.planCta {
+  align-self: end;
+}

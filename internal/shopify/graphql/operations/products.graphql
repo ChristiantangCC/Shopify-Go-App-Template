@@ -1,0 +1,20 @@
+# The example endpoint's product list.
+query ProductsList($first: Int!, $after: String) {
+  products(first: $first, after: $after, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      # @genqlient(typename: "ProductNode")
+      node {
+        id
+        title
+        handle
+        status
+        totalInventory
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}

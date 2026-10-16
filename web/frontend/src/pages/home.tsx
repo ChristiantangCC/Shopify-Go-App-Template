@@ -99,6 +99,34 @@ const DynamicSubscriptionDemo = () => {
   );
 };
 
+/** Live demo: starts the products bulk export; the finish webhook does the rest. */
+const BulkDemo = () => {
+  const start = useMutation({
+    mutationFn: async () => {
+      const response = await authFetch('/api/admin/bulk/products', { method: 'POST' });
+      const body = (await response.json().catch(() => null)) as
+        | { operationId?: string; error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? `bulk start failed: ${response.status}`);
+      }
+      return body?.operationId ?? '';
+    },
+    onSuccess: () => {
+      shopify.toast.show('Bulk export started, watch the server log');
+    },
+    onError: (error) => {
+      shopify.toast.show(String(error), { isError: true });
+    },
+  });
+
+  return (
+    <s-button disabled={start.isPending} onClick={() => start.mutate()}>
+      Start bulk product export
+    </s-button>
+  );
+};
+
 /** The template's front page: what ships, where to change it, and a live demo. */
 export const HomePage = () => {
   return (
@@ -144,7 +172,7 @@ export const HomePage = () => {
         <s-stack direction="block" gap="base">
           <Feature title="Static (app-specific)" badge="SourceToml">
             Declared in <Path>shopify.app.toml</Path> and registered by{' '}
-            <Path>pnpm app:deploy:dev</Path>. Same for every shop; this is how{' '}
+            <Path>bun run app:deploy:dev</Path>. Same for every shop; this is how{' '}
             <Path>app/uninstalled</Path>, <Path>app/scopes_update</Path> and the three compliance
             topics ship.
           </Feature>
@@ -184,13 +212,23 @@ export const HomePage = () => {
 
       <s-section heading="Calling the Admin API">
         <s-paragraph>
-          Operations are plain GraphQL documents with typed response structs, one file per domain
-          in <Path>internal/shopify/graphql/</Path>. The client retries THROTTLED and 429 using
-          Shopify's cost feedback, retries 5xx only for queries and mutations marked{' '}
-          <Path>@idempotent(key:)</Path>, and recovers from a 401 with one forced token refresh.
-          The example endpoint <Path>GET /api/admin/products</Path> shows the full path from{' '}
-          <Path>authFetch</Path> to a typed GraphQL response.
+          Operations are .graphql documents in{' '}
+          <Path>internal/shopify/graphql/operations/</Path>, compiled to typed Go by genqlient:
+          write the document, run <Path>bun run codegen</Path>, call the generated function through{' '}
+          <Path>adminClient.ForShop(shop)</Path>. Typos and schema drift fail at compile time, and
+          the client still handles THROTTLED and 429 via Shopify's cost feedback, retries 5xx only
+          for queries and <Path>@idempotent(key:)</Path> mutations, and recovers from a 401 with
+          one forced token refresh.
         </s-paragraph>
+        <Feature title="Bulk operations">
+          For "every record in the store" workloads, paging dies at the cost limit; bulk
+          operations are the escape hatch. <Path>internal/shopify/bulk</Path> starts the query,
+          Shopify grinds through it server-side and delivers{' '}
+          <Path>bulk_operations/finish</Path> (a permanent registry subscription, no per-run
+          subscribe dance), and the handler streams the JSONL result. Try it, then watch the
+          server log for the downloaded line count:
+        </Feature>
+        <BulkDemo />
       </s-section>
 
       <s-section heading="Where to go from here">

@@ -28,7 +28,10 @@ What is already solved:
   compliance topics are handled out of the box.
 - **Admin API client.** Throttle-aware with Shopify's cost feedback,
   retries that respect mutation safety (only `@idempotent` mutations are
-  resent after a 5xx), and one forced token refresh on 401.
+  resent after a 5xx), and one forced token refresh on 401. Bulk
+  operations included, webhook-driven.
+- **Request logging.** One line per API request with a request id that
+  follows a webhook into its background job.
 
 ## Stack
 
@@ -38,12 +41,12 @@ What is already solved:
 | Database | pgx + sqlc + goose | typed queries generated from plain SQL, migrations in the repo, no ORM runtime |
 | Jobs | River | jobs live in Postgres, so webhook dedupe + enqueue commit atomically and there is no Redis |
 | Frontend | Vite + Preact + TanStack Query + Polaris web components | 22 KB gzipped, React mental model, Shopify's own components |
-| GraphQL | documents + typed response structs in `internal/shopify/graphql/` | a template ships ten operations; codegen (genqlient) is overkill until you have dozens |
+| GraphQL | genqlient codegen from `.graphql` documents | compile-time safety against the Admin schema; `bun run codegen` regenerates |
 
 ## Setup
 
-You need Go 1.26+, Docker, pnpm and Shopify CLI
-(`pnpm add -g @shopify/cli`).
+You need Go 1.26+, Docker, [Bun](https://bun.sh) and Shopify CLI
+(`npm install -g @shopify/cli`, or brew).
 
 ### 0. Make it yours
 
@@ -51,13 +54,13 @@ Either start from GitHub: **Use this template → Create a new repository**,
 clone it, and rename it in place:
 
 ```bash
-pnpm new-app . github.com/you/my-app "My App"
+bun run new-app . github.com/you/my-app "My App"
 ```
 
 Or stamp a sibling folder from a local checkout (no git history):
 
 ```bash
-pnpm new-app ../My-App github.com/you/my-app "My App"
+bun run new-app ../My-App github.com/you/my-app "My App"
 ```
 
 Both rewrite the Go module path, the app name and handle in the toml
@@ -66,7 +69,7 @@ files and the frontend package, then verify the result builds.
 ### 1. Run it
 
 ```bash
-pnpm app:start:dev
+bun run app:start:dev
 ```
 
 That wraps `shopify app dev`, exactly like a Node Shopify template: on
@@ -113,7 +116,7 @@ behind session-token verification; read the shop with
    new file in that package).
 2. Register it in `Registry`.
 3. `SourceToml` topics (app-specific, same for every shop) also go into
-   both toml files; run `pnpm app:deploy:dev`. `SourceDynamic` topics need
+   both toml files; run `bun run app:deploy:dev`. `SourceDynamic` topics need
    nothing else: the app syncs them per shop through the Admin API on
    install and on every app open.
 
@@ -126,23 +129,65 @@ Define an args type and a worker in `internal/jobs/jobs.go`, register the
 worker in `NewClient`, and either enqueue it (`river.Client.Insert`, or
 `InsertTx` to tie it to a database write) or add it to `PeriodicJobs`.
 
+### Per-shop settings
+
+The Settings page is the pattern: a `shop_settings` row per shop
+(cascading from `shops`, so `shop/redact` wipes it), sqlc queries, a
+`GET`/`PUT /api/admin/settings` pair, and a native form with App Bridge's
+`data-save-bar` giving dirty tracking and discard for free. Add fields by
+extending the migration, the queries and the form.
+
+### A bulk operation
+
+For "every record in the store" workloads, start a bulk query with
+`bulk.Start` (see `POST /api/admin/bulk/products`). Shopify runs it
+server-side and delivers `bulk_operations/finish`, a permanent dynamic
+subscription in the registry; its handler fetches the result URL and
+streams the JSONL line by line. Replace the demo handler's line counter
+with your processing.
+
 ### A GraphQL operation
 
-Put the document and its response struct in
-`internal/shopify/graphql/<domain>.go`, then `admin.Client.Do(ctx, shop,
-doc, vars, &out)`. Mark mutations that are safe to resend with Shopify's
-`@idempotent(key: ...)` directive; the client only retries 5xx/network
-failures for queries and idempotent mutations (429 and THROTTLED always
-retry).
+Operations are `.graphql` documents in
+`internal/shopify/graphql/operations/`, one file per domain, compiled to
+typed Go by genqlient. Add or change an operation, then:
+
+```bash
+bun run codegen
+```
+
+That fetches the Admin schema from shopify.dev's public introspection
+proxy (no token needed; `SHOPIFY_API_VERSION` picks the version) and
+regenerates `generated.go`, which is committed, so clones build without
+running codegen. Call the generated function through the per-shop adapter:
+
+```go
+res, err := graphql.ProductsList(ctx, adminClient.ForShop(shop), 20, nil)
+```
+
+`ForShop` routes generated operations through the admin client, so token
+refresh, throttle waits and retry rules all still apply. A typo or a
+schema change fails at codegen or compile time instead of in production;
+porting to API 2026-07 surfaced exactly that
+(`WebhookSubscriptionInput.callbackUrl` became `uri`). Mark mutations that
+are safe to resend with Shopify's `@idempotent(key: ...)` directive; the
+client only retries 5xx/network failures for queries and idempotent
+mutations (429 and THROTTLED always retry).
 
 ## Billing (optional)
 
 Set `BILLING_ENABLED=true` and `SHOPIFY_APP_HANDLE=<handle>`. That mounts
-`/api/admin/billing/status` and shows the Billing page, which reads the
-active subscription and links to Shopify's managed pricing plans page.
-Configure the plans themselves in the Dev Dashboard (managed pricing). For
-the rare app that cannot use managed pricing, `graphql/billing.go` ships
-`appSubscriptionCreate`.
+`/api/admin/billing/status` and shows the Billing page: the live
+subscription plus plan cards from `web/frontend/src/lib/plans.ts`.
+
+The cards are placeholder UI and nothing is enforced: the server never
+checks a plan, and no card creates a charge. The real plans are configured
+as managed pricing in the Dev Dashboard, which you do when submitting the
+app for review; the cards' Choose buttons open Shopify's hosted plan
+picker, which is what actually changes a merchant's plan. Keep the catalog
+mirroring that configuration, and add your own gating where your app needs
+it. For the rare app that cannot use managed pricing, the generated
+`AppSubscriptionCreate` operation ships too.
 
 ## Storefront and server-to-server
 
@@ -168,7 +213,7 @@ credentials, exactly like the dev app. Put its client id in
 real domain, then release the config:
 
 ```bash
-pnpm app:deploy:prod
+bun run app:deploy:prod
 ```
 
 Same command whenever production scopes, webhook topics or URLs change.
@@ -177,13 +222,13 @@ Same command whenever production scopes, webhook topics or URLs change.
 
 | Command | What it does |
 |---|---|
-| `pnpm app:start:dev` | `shopify app dev` (tunnel, store, install, p/g hotkeys) plus Postgres, Vite and the Go server; `pnpm dev` is an alias |
-| `pnpm app:deploy:dev` | push dev config (scopes, webhooks, URLs) to Shopify |
-| `pnpm app:deploy:prod` | release the production config |
-| `pnpm new-app <dir> <module> <name>` | stamp a new app from the template |
-| `pnpm test` | `go test ./...` |
-| `pnpm typecheck` | frontend type check |
-| `pnpm db:up` | just the dev Postgres |
+| `bun run app:start:dev` | `shopify app dev` (tunnel, store, install, p/g hotkeys) plus Postgres, Vite and the Go server; `bun run dev` is an alias |
+| `bun run app:deploy:dev` | push dev config (scopes, webhooks, URLs) to Shopify |
+| `bun run app:deploy:prod` | release the production config |
+| `bun run new-app <dir> <module> <name>` | stamp a new app from the template |
+| `bun run test` | `go test ./...` |
+| `bun run typecheck` | frontend type check |
+| `bun run db:up` | just the dev Postgres |
 
 ## Tests
 

@@ -74,6 +74,7 @@ func run() error {
 	riverClient, err := jobs.NewClient(jobs.Options{
 		Pool:       pool,
 		Store:      shops,
+		Admin:      adminClient,
 		Tokens:     tokenService,
 		Subscriber: subscriber,
 		Logger:     logger,
@@ -96,7 +97,7 @@ func run() error {
 	}
 
 	router := chi.NewRouter()
-	router.Use(middleware.RequestID, middleware.Recoverer, middleware.Timeout(30*time.Second))
+	router.Use(middleware.RequestID, logging.RequestLogger(logger), middleware.Recoverer, middleware.Timeout(30*time.Second))
 
 	router.Method(http.MethodGet, "/health", handlers.Health{Pool: pool})
 	router.Method(http.MethodPost, "/webhooks", handlers.Webhook{Secret: cfg.ClientSecret, Pool: pool, River: riverClient, Logger: logger})
@@ -109,6 +110,10 @@ func run() error {
 		webhookSubs := handlers.WebhookSubscriptions{Subscriber: subscriber, Logger: logger}
 		r.Get("/webhooks/subscriptions", webhookSubs.List)
 		r.Post("/webhooks/subscriptions", webhookSubs.Toggle)
+		settings := handlers.Settings{Store: shops, Logger: logger}
+		r.Get("/settings", settings.Get)
+		r.Put("/settings", settings.Put)
+		r.Method(http.MethodPost, "/bulk/products", handlers.StartProductsBulk{Admin: adminClient, Logger: logger})
 		if cfg.BillingEnabled {
 			r.Method(http.MethodGet, "/billing/status", handlers.BillingStatus{Admin: adminClient, AppHandle: cfg.AppHandle, Logger: logger})
 		}

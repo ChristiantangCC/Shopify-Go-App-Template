@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -53,6 +54,7 @@ func (h Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing webhook headers")
 		return
 	}
+
 	if _, known := webhooks.Lookup(topic); !known {
 		// Still 200: anything else makes Shopify retry a topic nobody
 		// handles. Hitting this means a subscription exists without a
@@ -86,7 +88,7 @@ func (h Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.River.InsertTx(r.Context(), tx, jobs.WebhookArgs{Shop: shop, Topic: topic, WebhookID: webhookID, Payload: body}, nil)
+	_, err = h.River.InsertTx(r.Context(), tx, jobs.WebhookArgs{Shop: shop, Topic: topic, WebhookID: webhookID, RequestID: middleware.GetReqID(r.Context()), Payload: body}, nil)
 	if err != nil {
 		h.Logger.Error("[Webhooks] Enqueue failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "try again")

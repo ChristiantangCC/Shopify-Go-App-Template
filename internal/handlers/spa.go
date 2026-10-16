@@ -108,7 +108,7 @@ func (h *SPA) devIndex(w http.ResponseWriter) {
 	res, err := http.Get(h.DevURL + "/index.html")
 	if err != nil {
 		h.Logger.Error("[SPA] Vite dev server unreachable", "url", h.DevURL, "error", err)
-		http.Error(w, "vite dev server unreachable, is `pnpm dev` running?", http.StatusBadGateway)
+		http.Error(w, "vite dev server unreachable, is `bun run dev` running?", http.StatusBadGateway)
 		return
 	}
 	defer res.Body.Close()

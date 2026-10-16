@@ -1,0 +1,27 @@
+# The optional billing module's operations.
+
+query ActiveSubscriptions {
+  currentAppInstallation {
+    activeSubscriptions {
+      id
+      name
+      status
+      test
+      currentPeriodEnd
+    }
+  }
+}
+
+# Only for apps that cannot use managed pricing.
+mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $test: Boolean, $lineItems: [AppSubscriptionLineItemInput!]!) {
+  appSubscriptionCreate(name: $name, returnUrl: $returnUrl, test: $test, lineItems: $lineItems) {
+    confirmationUrl
+    appSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

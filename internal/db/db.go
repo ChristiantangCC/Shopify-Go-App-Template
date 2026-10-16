@@ -36,8 +36,19 @@ func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 }
 
 // Migrate brings the schema up to date: the app's goose migrations first,
-// then River's queue tables.
+// then River's queue tables. An advisory lock serialises it, so several
+// instances booting at once (a rolling deploy) migrate one at a time.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("db: %w", err)
+	}
+	defer lock.Release()
+	if _, err := lock.Exec(ctx, "SELECT pg_advisory_lock(hashtext('schema-migrations'))"); err != nil {
+		return fmt.Errorf("db: migration lock: %w", err)
+	}
+	defer lock.Exec(ctx, "SELECT pg_advisory_unlock(hashtext('schema-migrations'))")
+
 	goose.SetBaseFS(migrations)
 	goose.SetLogger(goose.NopLogger())
 	if err := goose.SetDialect("postgres"); err != nil {

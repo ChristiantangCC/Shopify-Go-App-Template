@@ -1,0 +1,30 @@
+# Bulk operations: start a bulk query, read its state and result URL when
+# the bulk_operations/finish webhook arrives.
+
+# groupObjects false is Shopify's recommended setting: faster, and child
+# objects arrive as their own JSONL lines carrying __parentId.
+mutation BulkOperationRunQuery($query: String!, $groupObjects: Boolean!) {
+  bulkOperationRunQuery(query: $query, groupObjects: $groupObjects) {
+    bulkOperation {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+query BulkOperationByID($id: ID!) {
+  # @genqlient(typename: "BulkOperationNode")
+  node(id: $id) {
+    ... on BulkOperation {
+      id
+      status
+      errorCode
+      objectCount
+      url
+    }
+  }
+}

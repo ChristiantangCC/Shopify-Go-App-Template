@@ -1,12 +1,12 @@
 # Stage 1: build the frontend. The committed dist/ already works; this
 # stage rebuilds it so an image never ships a stale frontend.
-FROM node:22-alpine AS frontend
-WORKDIR /src/web/frontend
-RUN corepack enable
-COPY web/frontend/package.json web/frontend/pnpm-lock.yaml web/frontend/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
-COPY web/frontend/ ./
-RUN pnpm build
+FROM oven/bun:1-alpine AS frontend
+WORKDIR /src
+COPY package.json bun.lock ./
+COPY web/frontend/package.json web/frontend/
+RUN bun install --frozen-lockfile
+COPY web/frontend/ web/frontend/
+RUN bun run --cwd web/frontend build
 
 # Stage 2: build the server with the fresh frontend embedded.
 FROM golang:1.26-alpine AS build

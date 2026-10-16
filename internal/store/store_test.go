@@ -80,6 +80,41 @@ func TestInstallLifecycle(t *testing.T) {
 	}
 }
 
+func TestSettingsRoundTripAndCascade(t *testing.T) {
+	pool := testdb.Pool(t)
+	cipher, _ := crypto.New(testKey)
+	shops := store.New(pool, cipher)
+	ctx := context.Background()
+	const shop = "example-shop.myshopify.com"
+
+	if _, _, err := shops.SaveInstall(ctx, shop, testToken()); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	settings, err := shops.GetSettings(ctx, shop)
+	if err != nil || settings.SyncEnabled != true || settings.NotificationEmail != "" {
+		t.Fatalf("defaults: %+v err %v", settings, err)
+	}
+
+	saved, err := shops.SaveSettings(ctx, shop, store.Settings{NotificationEmail: "ops@example.com", SyncEnabled: false})
+	if err != nil || saved.NotificationEmail != "ops@example.com" || saved.SyncEnabled {
+		t.Fatalf("save: %+v err %v", saved, err)
+	}
+	loaded, err := shops.GetSettings(ctx, shop)
+	if err != nil || loaded != saved {
+		t.Fatalf("reload: %+v err %v", loaded, err)
+	}
+
+	// shop/redact deletes the shop; settings must cascade away.
+	if err := shops.Delete(ctx, shop); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	after, err := shops.GetSettings(ctx, shop)
+	if err != nil || after.NotificationEmail != "" || !after.SyncEnabled {
+		t.Fatalf("after redact settings must be defaults again: %+v err %v", after, err)
+	}
+}
+
 func TestClaimWebhookDeliveryDeduplicates(t *testing.T) {
 	pool := testdb.Pool(t)
 	ctx := context.Background()

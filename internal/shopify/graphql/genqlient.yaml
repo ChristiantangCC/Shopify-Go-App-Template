@@ -1,0 +1,42 @@
+# genqlient config: `bun run codegen` fetches schema.graphql (gitignored) and
+# regenerates generated.go (committed) from the operations/ documents.
+schema: schema.graphql
+operations:
+  - operations/*.graphql
+generated: generated.go
+package: graphql
+optional: pointer
+use_struct_references: true
+
+# Shopify's custom scalars, bound to sensible Go types. DateTime values
+# are RFC3339, which is exactly what time.Time marshals to.
+bindings:
+  DateTime:
+    type: time.Time
+  Date:
+    type: string
+  URL:
+    type: string
+  Money:
+    type: string
+  Decimal:
+    type: string
+  UnsignedInt64:
+    type: string
+  BigInt:
+    type: string
+  JSON:
+    type: encoding/json.RawMessage
+  HTML:
+    type: string
+  FormattedString:
+    type: string
+  ARN:
+    type: string
+  StorefrontID:
+    type: string
+  UtcOffset:
+    type: string
+  Color:
+    type: string
+

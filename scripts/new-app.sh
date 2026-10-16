@@ -60,5 +60,5 @@ echo "Created $target"
 echo "  module  $module"
 echo "  name    $name (handle: $handle)"
 echo
-echo "Next: pnpm app:start:dev"
+echo "Next: bun run app:start:dev"
 echo "The Shopify CLI creates the dev app and installs it on your dev store."

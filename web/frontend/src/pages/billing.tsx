@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
 
-import { authFetch } from '../lib/auth-fetch';
+import { authFetch } from "../lib/auth-fetch";
+import { PLANS, type Plan } from "../lib/plans";
+import styles from "./billing.module.css";
 
 interface Subscription {
   id: string;
@@ -16,47 +18,123 @@ interface BillingStatus {
 }
 
 const fetchBillingStatus = async (): Promise<BillingStatus> => {
-  const response = await authFetch('/api/admin/billing/status');
+  const response = await authFetch("/api/admin/billing/status");
   if (!response.ok) {
     throw new Error(`billing request failed: ${response.status}`);
   }
   return (await response.json()) as BillingStatus;
 };
 
+interface PlanCardProps {
+  plan: Plan;
+  isCurrent: boolean;
+  /** Shopify's hosted plan-selection page; undefined until the app handle is configured. */
+  pricingPlansUrl?: string;
+}
+
+const PlanCard = ({ plan, isCurrent, pricingPlansUrl }: PlanCardProps) => (
+  // Four direct children = the four shared grid bands; a fifth breaks the
+  // cross-card alignment (see billing.module.css).
+  <div className={styles.planCard}>
+    <s-stack direction="block" gap="small-500">
+      <s-heading>{plan.name}</s-heading>
+      <s-stack direction="inline" gap="small-500" alignItems="end">
+        <s-text type="strong" fontSize="large-100">
+          {plan.priceUsd === null ? "Free" : `$${plan.priceUsd}`}
+        </s-text>
+        {plan.priceUsd !== null && <s-text color="subdued">/ month</s-text>}
+      </s-stack>
+      <s-paragraph color="subdued">{plan.tagline}</s-paragraph>
+    </s-stack>
+
+    <div className={styles.planQuota}>
+      <s-stack direction="block" gap="small-500">
+        <s-text type="strong">{plan.quota}</s-text>
+        <s-paragraph color="subdued">{plan.quotaDetail}</s-paragraph>
+      </s-stack>
+    </div>
+
+    <div className={styles.planFeatures}>
+      <s-stack direction="block" gap="small-400">
+        {plan.features.map((feature) => (
+          <div key={feature} className={styles.feature}>
+            <span className={styles.featureIcon}>
+              <s-icon type="check" tone="success" />
+            </span>
+            <span className={styles.featureText}>
+              <s-text>{feature}</s-text>
+            </span>
+          </div>
+        ))}
+      </s-stack>
+    </div>
+
+    <div className={styles.planCta}>
+      <s-button
+        inlineSize="fill"
+        variant="secondary"
+        disabled={isCurrent || !pricingPlansUrl || undefined}
+        onClick={pricingPlansUrl ? () => window.open(pricingPlansUrl, "_top") : undefined}
+      >
+        {isCurrent ? "Current plan" : "Switch plan"}
+      </s-button>
+    </div>
+  </div>
+);
+
 /**
- * Shows the shop's current subscription and links to the managed-pricing
- * plans page. This page only appears when BILLING_ENABLED is on.
+ * Plans & billing: plan cards projected from the catalog, the live
+ * subscription from the billing endpoint. Switching plans happens on the
+ * Shopify-hosted plan-selection page (managed pricing); this page is the
+ * in-app view, and the catalog is placeholder UI with no enforcement.
  */
 export const BillingPage = () => {
-  const billing = useQuery({ queryKey: ['billing'], queryFn: fetchBillingStatus });
+  const billing = useQuery({ queryKey: ["billing"], queryFn: fetchBillingStatus });
+
+  const activeSubscription = billing.data?.subscriptions[0];
+  const currentPlanName = activeSubscription?.name ?? "Free";
 
   return (
-    <s-page heading="Billing">
-      <s-section heading="Your plan">
+    <s-page heading="Plans & billing">
+      <s-stack direction="block" gap="base">
+        <s-banner heading="Template UI, nothing is enforced">
+          These cards are placeholders: the server never checks a plan and no card creates a
+          charge. Configure the real plans as managed pricing in the Dev Dashboard (required
+          before app review) and keep web/frontend/src/lib/plans.ts mirroring them; the Switch
+          buttons open Shopify's hosted plan picker, which is what actually changes a merchant's
+          plan.
+        </s-banner>
+
         {billing.isLoading && <s-spinner accessibilityLabel="Loading plan"></s-spinner>}
         {billing.isError && (
           <s-banner tone="critical" heading="Could not load billing">
             {String(billing.error)}
           </s-banner>
         )}
-        {billing.data && billing.data.subscriptions.length === 0 && (
-          <s-paragraph>No active subscription: this shop is on the free plan.</s-paragraph>
+
+        {billing.data && (
+          <div className={styles.planGrid}>
+            {PLANS.map((plan) => (
+              <PlanCard
+                key={plan.name}
+                plan={plan}
+                isCurrent={plan.name === currentPlanName}
+                pricingPlansUrl={billing.data.pricingPlansUrl}
+              />
+            ))}
+          </div>
         )}
-        {billing.data?.subscriptions.map((subscription) => (
-          <s-stack direction="inline" gap="base" alignItems="center">
-            <s-text fontWeight="bold">{subscription.name}</s-text>
-            <s-badge tone={subscription.status === 'ACTIVE' ? 'success' : 'neutral'}>
-              {subscription.status.toLowerCase()}
-            </s-badge>
-            {subscription.test && <s-badge tone="info">test</s-badge>}
-          </s-stack>
-        ))}
-        {billing.data?.pricingPlansUrl && (
-          <s-button href={billing.data.pricingPlansUrl} target="_top" variant="primary">
-            View plans
-          </s-button>
+
+        {billing.data && !billing.data.pricingPlansUrl && (
+          <s-paragraph color="subdued">
+            Set SHOPIFY_APP_HANDLE in .env to enable the Switch buttons; they link to the
+            managed-pricing plan picker.
+          </s-paragraph>
         )}
-      </s-section>
+        <s-paragraph color="subdued">
+          All prices in USD, billed through the Shopify invoice.
+        </s-paragraph>
+      </s-stack>
     </s-page>
   );
 };

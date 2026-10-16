@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/bulk"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
 )
 
@@ -33,6 +35,7 @@ type Delivery struct {
 // should call into a service of its own.
 type Deps struct {
 	Store  *store.Store
+	Admin  *admin.Client
 	Logger *slog.Logger
 }
 
@@ -66,6 +69,11 @@ var Registry = []Registration{
 	// app's home page.
 	{Topic: "products/update", Source: SourceDynamic, Handle: handleProductsUpdate},
 	{Topic: "products/create", Source: SourceDynamic, Handle: handleProductsCreate},
+
+	// Fires when a bulk operation this app started finishes; the handler
+	// downloads the JSONL result. One permanent subscription covers every
+	// run, because the payload carries the operation id.
+	{Topic: "bulk_operations/finish", Source: SourceDynamic, Handle: handleBulkOperationFinish},
 }
 
 // Lookup finds the registration for a topic.
@@ -152,6 +160,44 @@ func handleProductsCreate(ctx context.Context, deps Deps, delivery Delivery) err
 		return err
 	}
 	deps.Logger.Info("[Webhooks] Product created", "shop", delivery.Shop, "productId", payload.ID, "title", payload.Title)
+	return nil
+}
+
+// handleBulkOperationFinish picks up a finished bulk operation: it reads
+// the result URL and streams the JSONL. The demo counts lines; replace the
+// Download callback with real processing.
+func handleBulkOperationFinish(ctx context.Context, deps Deps, delivery Delivery) error {
+	var payload struct {
+		AdminGraphqlAPIID string  `json:"admin_graphql_api_id"`
+		Status            string  `json:"status"`
+		ErrorCode         *string `json:"error_code"`
+	}
+	if err := json.Unmarshal(delivery.Payload, &payload); err != nil {
+		return err
+	}
+	if payload.Status != "completed" {
+		deps.Logger.Warn("[Webhooks] Bulk operation did not complete", "shop", delivery.Shop, "operation", payload.AdminGraphqlAPIID, "status", payload.Status)
+		return nil
+	}
+
+	operation, err := bulk.Get(ctx, deps.Admin, delivery.Shop, payload.AdminGraphqlAPIID)
+	if err != nil {
+		return err
+	}
+	if operation.URL == "" {
+		deps.Logger.Info("[Webhooks] Bulk operation finished with no results", "shop", delivery.Shop, "operation", operation.ID)
+		return nil
+	}
+
+	lines := 0
+	err = bulk.Download(ctx, operation.URL, func(line []byte) error {
+		lines++
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	deps.Logger.Info("[Webhooks] Bulk result downloaded", "shop", delivery.Shop, "operation", operation.ID, "lines", lines, "objectCount", operation.ObjectCount)
 	return nil
 }
 

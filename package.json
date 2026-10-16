@@ -1,15 +1,20 @@
 {
   "name": "shopify-go-app-template",
   "private": true,
+  "packageManager": "bun@1.3.12",
+  "workspaces": [
+    "web/frontend"
+  ],
   "scripts": {
     "app:start:dev": "shopify app dev --config dev",
     "dev": "shopify app dev --config dev",
     "new-app": "bash scripts/new-app.sh",
     "app:deploy:dev": "shopify app deploy --config dev",
     "app:deploy:prod": "shopify app deploy",
-    "frontend:dev": "pnpm --dir web/frontend dev",
-    "frontend:build": "pnpm --dir web/frontend build",
-    "typecheck": "pnpm --dir web/frontend typecheck",
+    "codegen": "go run ./scripts/fetch-schema && cd internal/shopify/graphql && go run github.com/Khan/genqlient",
+    "frontend:dev": "bun run --cwd web/frontend dev",
+    "frontend:build": "bun run --cwd web/frontend build",
+    "typecheck": "bun run --cwd web/frontend typecheck",
     "test": "go test ./...",
     "db:up": "docker compose up -d --wait postgres"
   }
