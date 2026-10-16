@@ -9,5 +9,14 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // The page loads through the dev tunnel, but the HMR websocket goes
+    // straight to localhost: tunnels drop idle websockets, and every drop
+    // makes the Vite client force a full page reload. Browsers allow
+    // ws://localhost from https pages, so this is safe.
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      port: 5173,
+    },
   },
 });
