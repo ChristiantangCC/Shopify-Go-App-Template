@@ -13,6 +13,7 @@
     "app:deploy:dev": "shopify app deploy --config dev",
     "app:deploy:prod": "shopify app deploy",
     "codegen": "go run ./scripts/fetch-schema && cd internal/shopify/graphql && go run github.com/Khan/genqlient",
+    "check:toml": "bun scripts/check-toml.ts",
     "frontend:dev": "bun run --cwd web/frontend dev",
     "frontend:build": "bun run --cwd web/frontend build",
     "typecheck": "bun run --cwd web/frontend typecheck",

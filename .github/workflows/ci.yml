@@ -49,6 +49,8 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bun run frontend:build
+      - name: Shopify config files parse
+        run: bun run check:toml
 
   docker:
     runs-on: ubuntu-latest
