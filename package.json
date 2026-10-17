@@ -3,7 +3,8 @@
   "private": true,
   "packageManager": "bun@1.3.12",
   "workspaces": [
-    "web/frontend"
+    "web/frontend",
+    "extensions/*"
   ],
   "scripts": {
     "app:start:dev": "shopify app dev --config dev",

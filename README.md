@@ -129,6 +129,20 @@ Define an args type and a worker in `internal/jobs/jobs.go`, register the
 worker in `NewClient`, and either enqueue it (`river.Client.Insert`, or
 `InsertTx` to tie it to a database write) or add it to `PeriodicJobs`.
 
+### An extension
+
+Checkout, theme, admin and other Shopify extensions live in
+`extensions/<name>`, where the Shopify CLI finds them:
+
+```bash
+shopify app generate extension --config dev
+```
+
+Each extension's `package.json` is a bun workspace, so one `bun install`
+at the root installs everything, and the Docker build installs it too.
+`bun run app:start:dev` builds and serves extensions alongside the app,
+and `bun run app:deploy:dev` releases them.
+
 ### Per-shop settings
 
 The Settings page is the pattern: a `shop_settings` row per shop

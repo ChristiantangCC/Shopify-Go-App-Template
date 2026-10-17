@@ -4,6 +4,8 @@ FROM oven/bun:1-alpine AS frontend
 WORKDIR /src
 COPY package.json bun.lock ./
 COPY web/frontend/package.json web/frontend/
+# Extensions are bun workspaces too; the lockfile expects them.
+COPY extensions/ extensions/
 RUN bun install --frozen-lockfile
 COPY web/frontend/ web/frontend/
 RUN bun run --cwd web/frontend build
