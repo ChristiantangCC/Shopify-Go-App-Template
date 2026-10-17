@@ -1,7 +1,7 @@
 # Development app configuration: a SEPARATE app in the Dev Dashboard, so
-# experiments never touch production. `pnpm app:start:dev` keeps the URLs
+# experiments never touch production. `bun run app:start:dev` keeps the URLs
 # pointed at the dev tunnel; push config changes (scopes, webhook topics)
-# with: pnpm app:deploy:dev
+# with: bun run app:deploy:dev
 
 client_id = ""
 name = "Go App Template (dev)"

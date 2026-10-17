@@ -81,6 +81,11 @@ which dev store to use and installs the app there. The app side of it
 server, and persists the credentials the CLI hands over into `.env` so
 tests and one-off scripts see the same values.
 
+Linking a brand-new dev app makes the CLI rewrite `shopify.app.dev.toml`
+from the Dev Dashboard, which would drop the template's webhooks and App
+Proxy. `scripts/link-dev.sh` runs first and keeps them: it copies only the
+new client id, name and handle into the file. Commit the result.
+
 While it runs, use the CLI's keys: `p` opens the app in the dev store,
 `g` opens GraphiQL against it, `q` quits.
 
@@ -135,8 +140,14 @@ Checkout, theme, admin and other Shopify extensions live in
 `extensions/<name>`, where the Shopify CLI finds them:
 
 ```bash
-shopify app generate extension --config dev
+bun run generate:extension
 ```
+
+Pass the generator's flags through, e.g. `bun run generate:extension
+--template checkout_ui --name upsell`. Don't run `shopify app generate
+extension` directly: it installs the new extension's packages with npm,
+which crashes on bun's `node_modules`. The script runs the generator in a
+clean temporary folder and moves the extension in.
 
 Each extension's `package.json` is a bun workspace, so one `bun install`
 at the root installs everything, and the Docker build installs it too.
@@ -237,6 +248,7 @@ Same command whenever production scopes, webhook topics or URLs change.
 | Command | What it does |
 |---|---|
 | `bun run app:start:dev` | `shopify app dev` (tunnel, store, install, p/g hotkeys) plus Postgres, Vite and the Go server; `bun run dev` is an alias |
+| `bun run generate:extension` | `shopify app generate extension` in a clean folder, then moves the extension in as a bun workspace |
 | `bun run app:deploy:dev` | push dev config (scopes, webhooks, URLs) to Shopify |
 | `bun run app:deploy:prod` | release the production config |
 | `bun run new-app <dir> <module> <name>` | stamp a new app from the template |
