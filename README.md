@@ -162,6 +162,18 @@ The Settings page is the pattern: a `shop_settings` row per shop
 `data-save-bar` giving dirty tracking and discard for free. Add fields by
 extending the migration, the queries and the form.
 
+### A table or a query
+
+Migrations live in `internal/db/migrations` (goose, applied when the
+server starts) and queries in `internal/store/queries` as plain SQL. After
+changing either, regenerate the typed Go code in `internal/store/gen`:
+
+```bash
+bun run db:generate
+```
+
+It runs a pinned sqlc through `go run`, so nothing needs installing.
+
 ### A bulk operation
 
 For "every record in the store" workloads, start a bulk query with
@@ -249,6 +261,7 @@ Same command whenever production scopes, webhook topics or URLs change.
 |---|---|
 | `bun run app:start:dev` | `shopify app dev` (tunnel, store, install, p/g hotkeys) plus Postgres, Vite and the Go server; `bun run dev` is an alias |
 | `bun run generate:extension` | `shopify app generate extension` in a clean folder, then moves the extension in as a bun workspace |
+| `bun run db:generate` | sqlc: regenerates `internal/store/gen` from the migrations and queries |
 | `bun run app:deploy:dev` | push dev config (scopes, webhooks, URLs) to Shopify |
 | `bun run app:deploy:prod` | release the production config |
 | `bun run new-app <dir> <module> <name>` | stamp a new app from the template |
