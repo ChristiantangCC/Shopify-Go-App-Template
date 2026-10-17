@@ -10,6 +10,7 @@
     "app:start:dev": "shopify app dev --config dev",
     "dev": "shopify app dev --config dev",
     "new-app": "bash scripts/new-app.sh",
+    "generate:extension": "bash scripts/generate-extension.sh",
     "app:deploy:dev": "shopify app deploy --config dev",
     "app:deploy:prod": "shopify app deploy",
     "codegen": "go run ./scripts/fetch-schema && cd internal/shopify/graphql && go tool genqlient",
