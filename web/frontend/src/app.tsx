@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { LocationProvider, Route, Router } from 'preact-iso';
 
+import { NavMenu } from './lib/app-bridge';
 import { bootstrapSession } from './lib/auth-fetch';
 import { ROUTES } from './routes';
 
@@ -36,13 +37,13 @@ export const App = () => {
   const routes = ROUTES.filter((route) => !route.requiresBilling || session.data.billingEnabled);
   return (
     <LocationProvider>
-      <ui-nav-menu>
+      <NavMenu>
         {routes.map((route) => (
           <a href={route.path} rel={route.path === '/' ? 'home' : undefined}>
             {route.label}
           </a>
         ))}
-      </ui-nav-menu>
+      </NavMenu>
       <Router>
         {routes.map((route) => (
           <Route path={route.path} component={route.component} />

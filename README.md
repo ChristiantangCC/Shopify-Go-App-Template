@@ -40,7 +40,7 @@ What is already solved:
 | HTTP | chi | stdlib-shaped router, no framework |
 | Database | pgx + sqlc + goose | typed queries generated from plain SQL, migrations in the repo, no ORM runtime |
 | Jobs | River | jobs live in Postgres, so webhook dedupe + enqueue commit atomically and there is no Redis |
-| Frontend | Vite + Preact + TanStack Query + Polaris web components | 22 KB gzipped, React mental model, Shopify's own components |
+| Frontend | Vite + Preact + TanStack Query + Polaris web components | 22 KB gzipped, React mental model, Shopify's own components, typed by `@shopify/polaris-types` so a wrong prop fails the typecheck |
 | GraphQL | genqlient codegen from `.graphql` documents | compile-time safety against the Admin schema; `bun run codegen` regenerates |
 
 ## Setup

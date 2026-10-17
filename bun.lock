@@ -14,6 +14,8 @@
       },
       "devDependencies": {
         "@preact/preset-vite": "^2.10.2",
+        "@shopify/app-bridge-types": "0.7.2",
+        "@shopify/polaris-types": "1.1.0",
         "typescript": "^5.9.3",
         "vite": "^6.3.6",
       },
@@ -187,6 +189,12 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.64.7", "", { "os": "win32", "cpu": "x64" }, "sha512-u9bp2yXCI3/BUjUxY6uWknAY32pfvvDCPysyUTySotx0dj3ydlFHrRQYfn/b/kZgnfjyEwySMtI7Ga054uiysQ=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.64.7", "", { "os": "win32", "cpu": "x64" }, "sha512-EhX6N3XPMEnVU5cRfNgzPOKcSucsbu3nNNWuoAaEuKIqmddBKHN5b9d4rPe65T1I+FaOT176JKiZNsUBp3rqbA=="],
+
+    "@shopify/app-bridge-types": ["@shopify/app-bridge-types@0.7.2", "", { "dependencies": { "@standard-schema/spec": "^1.0.0" } }, "sha512-Fl4GnQXzJ3h43kvD/i8e1iWP+ynIxue0L1Eezf7GVoGiIYjvu3BqX3au+kHXGx7Us6nQ4Ku6lKdFZP+nAFepCQ=="],
+
+    "@shopify/polaris-types": ["@shopify/polaris-types@1.1.0", "", {}, "sha512-hqd+58XbpsShQmTiMakiUraLL9yjeqcFkaEfiajdxAArQJGREsnNBxY1+cN0egWHFQ7/1Xsqjx0RObd3V0Fy1w=="],
+
+    "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
     "@tanstack/query-core": ["@tanstack/query-core@5.104.3", "", {}, "sha512-DZY9TuJAOgU3UyHUhXb4CcTYEHNZszlwkPg4VViIwTxOKzLprPUU+rbaPZQd3srqkGOtpaDdKpW972UV/LKlcg=="],
 

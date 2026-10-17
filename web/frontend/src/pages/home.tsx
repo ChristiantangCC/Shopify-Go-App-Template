@@ -76,7 +76,7 @@ const DynamicSubscriptionDemo = () => {
   return (
     <s-stack direction="inline" gap="base" alignItems="center">
       <Path>products/create</Path>
-      {subscriptions.isLoading && <s-spinner accessibilityLabel="Loading subscription state" size="small"></s-spinner>}
+      {subscriptions.isLoading && <s-spinner accessibilityLabel="Loading subscription state" size="base"></s-spinner>}
       {subscriptions.data && (
         <s-badge tone={subscribed ? 'success' : 'neutral'}>
           {subscribed ? 'subscribed' : 'not subscribed'}

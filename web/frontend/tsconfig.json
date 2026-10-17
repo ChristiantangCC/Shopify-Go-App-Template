@@ -14,7 +14,7 @@
     "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": []
+    "types": ["@shopify/polaris-types", "@shopify/app-bridge-types"]
   },
   "include": ["src"]
 }

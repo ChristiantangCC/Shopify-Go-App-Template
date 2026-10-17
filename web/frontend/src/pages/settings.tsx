@@ -91,17 +91,14 @@ export const SettingsPage = () => {
         {settings.data && (
           <form data-save-bar onSubmit={onSubmit} key={JSON.stringify(settings.data)}>
             <s-stack direction="block" gap="base">
-              <s-text-field
+              <s-email-field
                 label="Notification email"
                 name="notificationEmail"
-                type="email"
                 defaultValue={settings.data.notificationEmail}
                 details="Where this app sends its notifications. Leave empty to disable."
                 error={fieldError}
-                onInput={(event: Event) =>
-                  setFieldError(emailError((event.target as HTMLInputElement).value))
-                }
-              ></s-text-field>
+                onInput={(event) => setFieldError(emailError(event.currentTarget.value))}
+              ></s-email-field>
               <s-checkbox
                 label="Sync enabled"
                 name="syncEnabled"
