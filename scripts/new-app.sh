@@ -44,10 +44,13 @@ APP_NAME="$name" APP_HANDLE="$handle" perl -pi -e '
   s/^subpath = .*/subpath = "$ENV{APP_HANDLE}"/;
 ' shopify.app.toml
 
+# The dev app gets its own App Proxy subpath too: a subpath belongs to one
+# app per store, and the dev store usually has other dev apps installed.
 APP_NAME="$name (dev)" APP_HANDLE="$handle-dev" perl -pi -e '
   s/^name = .*/name = "$ENV{APP_NAME}"/;
   s/^handle = .*/handle = "$ENV{APP_HANDLE}"/;
   s/^client_id = .*/client_id = ""/;
+  s/^subpath = .*/subpath = "$ENV{APP_HANDLE}"/;
 ' shopify.app.dev.toml
 
 APP_HANDLE="$handle" perl -pi -e 's/"name": "shopify-go-app-template"/"name": "$ENV{APP_HANDLE}"/' package.json
