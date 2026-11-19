@@ -16,7 +16,7 @@ scopes = "read_products"
 redirect_urls = []
 
 [webhooks]
-api_version = "2026-07"
+api_version = "2026-10"
 
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled", "app/scopes_update"]
@@ -25,6 +25,33 @@ api_version = "2026-07"
   [[webhooks.subscriptions]]
   compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
   uri = "/webhooks"
+
+# Events: Shopify's next-generation subscriptions (API 2026-10+, Shopify
+# CLI 3.92+). STATIC: declared only here, so every install gets the same
+# subscriptions. Use Events for anything every shop needs; keep [webhooks]
+# above for the app lifecycle and compliance topics Events doesn't cover,
+# and create per-shop (conditional) subscriptions dynamically through the
+# Admin API instead. Decision rule: docs/subscriptions.md.
+#
+# Deliveries go to POST /events and are routed by `handle` to
+# internal/shopify/events/registry.go. Uncomment, edit, add the handle to
+# the registry, then deploy the config.
+#
+# [events]
+# api_version = "2026-10"
+#
+#   [[events.subscription]]
+#   handle = "product-price-changed"
+#   topic = "Product"
+#   actions = ["update"]
+#   triggers = ["product.variants.price"]
+#   uri = "/events"
+#   query = """
+#   query product_price_changed($productId: ID!) {
+#     product(id: $productId) { id title status }
+#   }
+#   """
+#   query_filter = "product.status:'ACTIVE'"
 
 [app_proxy]
 url = "https://example.com/proxy"

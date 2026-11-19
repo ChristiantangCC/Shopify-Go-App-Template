@@ -41,7 +41,7 @@ func fixture(t *testing.T, handler http.HandlerFunc) (service *tokens.Service, s
 	if err != nil {
 		t.Fatalf("crypto: %v", err)
 	}
-	shops = store.New(testdb.Pool(t), cipher)
+	shops = store.New(testdb.Open(t).Gorm, cipher, nil)
 	ex := exchange.New("client-id", "client-secret")
 	ex.HTTPClient = server.Client()
 	service = tokens.New(shops, ex, discard)

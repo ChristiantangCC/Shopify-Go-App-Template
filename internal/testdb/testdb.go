@@ -6,33 +6,34 @@ package testdb
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/url"
 	"os"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/db"
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
 )
 
-// Pool creates a throwaway database, migrates it and returns a pool bound
+// Open creates a throwaway database, migrates it and returns handles bound
 // to it. The database is dropped when the test finishes.
-func Pool(t *testing.T) *pgxpool.Pool {
+func Open(t *testing.T) *db.DB {
 	t.Helper()
 	baseURL := os.Getenv("TEST_DATABASE_URL")
 	if baseURL == "" {
 		t.Skip("TEST_DATABASE_URL not set, skipping Postgres integration test")
 	}
 	ctx := context.Background()
+	logger := slog.New(slog.DiscardHandler)
 
-	admin, err := db.Connect(ctx, baseURL)
+	admin, err := db.Connect(ctx, baseURL, logger)
 	if err != nil {
 		t.Fatalf("testdb: connect: %v", err)
 	}
 
 	name := fmt.Sprintf("test_%d_%d", os.Getpid(), rand.Int63())
-	if _, err := admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+	if _, err := admin.Pool.Exec(ctx, "CREATE DATABASE "+name); err != nil {
 		admin.Close()
 		t.Fatalf("testdb: create database: %v", err)
 	}
@@ -43,20 +44,20 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	}
 	parsed.Path = "/" + name
 
-	pool, err := db.Connect(ctx, parsed.String())
+	database, err := db.Connect(ctx, parsed.String(), logger)
 	if err != nil {
 		t.Fatalf("testdb: connect to %s: %v", name, err)
 	}
 	t.Cleanup(func() {
-		pool.Close()
-		if _, err := admin.Exec(context.Background(), "DROP DATABASE "+name); err != nil {
+		database.Close()
+		if _, err := admin.Pool.Exec(context.Background(), "DROP DATABASE "+name); err != nil {
 			t.Errorf("testdb: drop database: %v", err)
 		}
 		admin.Close()
 	})
 
-	if err := db.Migrate(ctx, pool); err != nil {
+	if err := db.Migrate(ctx, database, store.Models()...); err != nil {
 		t.Fatalf("testdb: migrate: %v", err)
 	}
-	return pool
+	return database
 }

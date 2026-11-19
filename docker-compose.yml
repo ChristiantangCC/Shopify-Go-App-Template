@@ -1,4 +1,4 @@
-# Development Postgres. Production runs the Dockerfile behind your own
+# Development Postgres and Redis. Production runs the Dockerfile behind your own
 # reverse proxy with HTTPS; see the README's Deploy section.
 services:
   postgres:
@@ -15,6 +15,17 @@ services:
       - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10

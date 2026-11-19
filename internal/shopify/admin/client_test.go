@@ -38,7 +38,7 @@ func testClient(t *testing.T, statuses ...int) (*Client, *fakeTokens, *atomic.In
 	}))
 	t.Cleanup(server.Close)
 	tokens := &fakeTokens{}
-	client := New("2026-07", tokens)
+	client := New("2026-10", tokens)
 	client.endpoint = func(shop string) string { return server.URL }
 	client.backoff = func(n int) time.Duration { return time.Millisecond }
 	return client, tokens, &calls
@@ -84,7 +84,7 @@ func TestDoRefreshesOnceAfterA401(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	tokens := &fakeTokens{}
-	client := New("2026-07", tokens)
+	client := New("2026-10", tokens)
 	client.endpoint = func(shop string) string { return server.URL }
 
 	if err := client.Do(context.Background(), "example.myshopify.com", `query { shop { id } }`, nil, nil); err != nil {
@@ -116,7 +116,7 @@ func TestDoRetriesThrottledWithTheComputedWait(t *testing.T) {
 		w.Write([]byte(`{"data":{}}`))
 	}))
 	t.Cleanup(server.Close)
-	client := New("2026-07", &fakeTokens{})
+	client := New("2026-10", &fakeTokens{})
 	client.endpoint = func(shop string) string { return server.URL }
 
 	if err := client.Do(context.Background(), "example.myshopify.com", `query { x }`, nil, nil); err != nil {

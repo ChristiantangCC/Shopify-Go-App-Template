@@ -3,8 +3,8 @@
 # The CLI opens the tunnel, keeps the app URL updated, picks the dev store,
 # installs the app and provides the preview/GraphiQL hotkeys. It hands this
 # script the tunnel URL and credentials as env vars (HOST, SHOPIFY_API_KEY,
-# SHOPIFY_API_SECRET, PORT); this script adds Postgres, Vite and the Go
-# server on top.
+# SHOPIFY_API_SECRET, PORT); this script adds Postgres, Redis, Vite and the
+# Go server on top.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -44,6 +44,25 @@ POSTGRES_PORT=$port docker compose up -d --wait postgres
 # Keep DATABASE_URL on the chosen port, unless it points somewhere custom.
 if [ -z "$(get DATABASE_URL)" ] || get DATABASE_URL | grep -q '^postgres://postgres:postgres@localhost:'; then
   put DATABASE_URL "postgres://postgres:postgres@localhost:$port/app?sslmode=disable"
+fi
+
+# Redis (cache only): same port dance as Postgres.
+redis_port=""
+if [ -n "$(docker compose ps --status running -q redis 2>/dev/null)" ]; then
+  redis_port=$(docker compose port redis 6379 | sed 's/.*://')
+fi
+if [ -z "$redis_port" ]; then
+  redis_port=$(get REDIS_PORT)
+  redis_port=${redis_port:-6379}
+  while lsof -nP -iTCP:"$redis_port" -sTCP:LISTEN >/dev/null 2>&1; do
+    redis_port=$((redis_port + 1))
+  done
+fi
+put REDIS_PORT "$redis_port"
+REDIS_PORT=$redis_port docker compose up -d --wait redis
+
+if [ -z "$(get REDIS_URL)" ] || get REDIS_URL | grep -q '^redis://localhost:'; then
+  put REDIS_URL "redis://localhost:$redis_port/0"
 fi
 
 # Vite for frontend hot reload; the Go server proxies HTML to it.
