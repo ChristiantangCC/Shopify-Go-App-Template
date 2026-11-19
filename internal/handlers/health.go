@@ -6,12 +6,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/cache"
 )
 
-// Health answers 200 when the app and its database are up. Point uptime
-// monitoring at it.
+// Health answers 200 when the app, its database and Redis are up. Point
+// uptime monitoring at it.
 type Health struct {
-	Pool *pgxpool.Pool
+	Pool  *pgxpool.Pool
+	Cache *cache.Cache
 }
 
 // ServeHTTP handles GET /health.
@@ -20,6 +23,10 @@ func (h Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if err := h.Pool.Ping(ctx); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "database unreachable")
+		return
+	}
+	if err := h.Cache.Ping(ctx); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "redis unreachable")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

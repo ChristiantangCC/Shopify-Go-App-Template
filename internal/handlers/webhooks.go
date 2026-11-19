@@ -1,19 +1,18 @@
 package handlers
 
 import (
+	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/jobs"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/shopdomain"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/webhooks"
-	storegen "github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store/gen"
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
 )
 
 // Webhook is the single intake for every topic. Order matters:
@@ -28,9 +27,11 @@ import (
 // Handlers run in River workers; this endpoint never does topic work.
 type Webhook struct {
 	Secret string
-	Pool   *pgxpool.Pool
-	River  *river.Client[pgx.Tx]
-	Logger *slog.Logger
+	Store  *store.Store
+	// Inserter is River's insert-only client on database/sql, so the job
+	// insert joins the GORM transaction that claims the delivery.
+	Inserter *river.Client[*sql.Tx]
+	Logger   *slog.Logger
 }
 
 // ServeHTTP handles POST /webhooks.
@@ -64,39 +65,17 @@ func (h Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.Pool.Begin(r.Context())
+	duplicate, err := queueDelivery(r.Context(), h.Store, h.Inserter,
+		store.WebhookDelivery{WebhookID: webhookID, ShopDomain: shop, Topic: topic},
+		jobs.WebhookArgs{Shop: shop, Topic: topic, WebhookID: webhookID, RequestID: middleware.GetReqID(r.Context()), Payload: body})
 	if err != nil {
 		h.Logger.Error("[Webhooks] Intake failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "try again")
 		return
 	}
-	defer tx.Rollback(r.Context())
-
-	claimed, err := storegen.New(tx).ClaimWebhookDelivery(r.Context(), storegen.ClaimWebhookDeliveryParams{
-		WebhookID:  webhookID,
-		ShopDomain: shop,
-		Topic:      topic,
-	})
-	if err != nil {
-		h.Logger.Error("[Webhooks] Claim failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "try again")
-		return
-	}
-	if claimed == 0 {
+	if duplicate {
 		h.Logger.Info("[Webhooks] Duplicate delivery", "topic", topic, "shop", shop, "webhookId", webhookID)
 		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	_, err = h.River.InsertTx(r.Context(), tx, jobs.WebhookArgs{Shop: shop, Topic: topic, WebhookID: webhookID, RequestID: middleware.GetReqID(r.Context()), Payload: body}, nil)
-	if err != nil {
-		h.Logger.Error("[Webhooks] Enqueue failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "try again")
-		return
-	}
-	if err := tx.Commit(r.Context()); err != nil {
-		h.Logger.Error("[Webhooks] Commit failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "try again")
 		return
 	}
 

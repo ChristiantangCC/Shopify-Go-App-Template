@@ -2,14 +2,19 @@ package store_test
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/cache"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/crypto"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/exchange"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
-	storegen "github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store/gen"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/testdb"
 )
 
@@ -26,9 +31,9 @@ func testToken() exchange.Token {
 }
 
 func TestInstallLifecycle(t *testing.T) {
-	pool := testdb.Pool(t)
+	database := testdb.Open(t)
 	cipher, _ := crypto.New(testKey)
-	shops := store.New(pool, cipher)
+	shops := store.New(database.Gorm, cipher, nil)
 	ctx := context.Background()
 	const shop = "example-shop.myshopify.com"
 
@@ -43,7 +48,8 @@ func TestInstallLifecycle(t *testing.T) {
 	}
 
 	// The database row must hold ciphertext, never the plain tokens.
-	row, err := storegen.New(pool).GetShop(ctx, shop)
+	var row store.Shop
+	err = database.Gorm.Where(&store.Shop{ShopDomain: shop}).Take(&row).Error
 	if err != nil || row.AccessTokenEnc == nil || row.RefreshTokenEnc == nil {
 		t.Fatalf("raw row: %+v err %v", row, err)
 	}
@@ -81,9 +87,9 @@ func TestInstallLifecycle(t *testing.T) {
 }
 
 func TestSettingsRoundTripAndCascade(t *testing.T) {
-	pool := testdb.Pool(t)
+	database := testdb.Open(t)
 	cipher, _ := crypto.New(testKey)
-	shops := store.New(pool, cipher)
+	shops := store.New(database.Gorm, cipher, nil)
 	ctx := context.Background()
 	const shop = "example-shop.myshopify.com"
 
@@ -116,17 +122,127 @@ func TestSettingsRoundTripAndCascade(t *testing.T) {
 }
 
 func TestClaimWebhookDeliveryDeduplicates(t *testing.T) {
-	pool := testdb.Pool(t)
+	database := testdb.Open(t)
+	cipher, _ := crypto.New(testKey)
+	shops := store.New(database.Gorm, cipher, nil)
 	ctx := context.Background()
-	queries := storegen.New(pool)
 
-	params := storegen.ClaimWebhookDeliveryParams{WebhookID: "wh-1", ShopDomain: "example-shop.myshopify.com", Topic: "products/update"}
-	first, err := queries.ClaimWebhookDelivery(ctx, params)
-	if err != nil || first != 1 {
-		t.Fatalf("first claim: rows %d err %v", first, err)
+	claim := func() bool {
+		t.Helper()
+		var claimed bool
+		err := shops.Transaction(ctx, func(tx *gorm.DB) error {
+			var err error
+			claimed, err = store.ClaimWebhookDelivery(tx, store.WebhookDelivery{WebhookID: "wh-1", ShopDomain: "example-shop.myshopify.com", Topic: "products/update"})
+			if err != nil {
+				return err
+			}
+			if _, err := store.SQLTx(tx); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("claim: %v", err)
+		}
+		return claimed
 	}
-	second, err := queries.ClaimWebhookDelivery(ctx, params)
-	if err != nil || second != 0 {
-		t.Fatalf("duplicate claim: rows %d err %v, want 0 rows", second, err)
+	if !claim() {
+		t.Fatal("first claim must succeed")
+	}
+	if claim() {
+		t.Fatal("duplicate claim must report false")
+	}
+
+	if pruned, err := shops.PruneWebhookDeliveries(ctx, time.Now().Add(-time.Hour)); err != nil || pruned != 0 {
+		t.Fatalf("prune before cutoff: rows %d err %v, want 0", pruned, err)
+	}
+	if pruned, err := shops.PruneWebhookDeliveries(ctx, time.Now().Add(time.Minute)); err != nil || pruned != 1 {
+		t.Fatalf("prune after cutoff: rows %d err %v, want 1", pruned, err)
+	}
+}
+
+func TestExpiringRefreshTokensAndLockedRefresh(t *testing.T) {
+	database := testdb.Open(t)
+	cipher, _ := crypto.New(testKey)
+	shops := store.New(database.Gorm, cipher, nil)
+	ctx := context.Background()
+	const shop = "example-shop.myshopify.com"
+
+	if _, _, err := shops.SaveInstall(ctx, shop, testToken()); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	listed, err := shops.ListShopsWithExpiringRefreshTokens(ctx, time.Now().Add(100*24*time.Hour))
+	if err != nil || len(listed) != 1 || listed[0] != shop {
+		t.Fatalf("expiring: %v err %v", listed, err)
+	}
+	if listed, _ := shops.ListShopsWithExpiringRefreshTokens(ctx, time.Now()); len(listed) != 0 {
+		t.Fatalf("nothing expires before now, got %v", listed)
+	}
+
+	refreshed := testToken()
+	refreshed.AccessToken = "shpat_rotated"
+	err = shops.WithShopLock(ctx, shop, func(ctx context.Context, locked store.LockedShop) error {
+		if _, err := locked.Get(ctx); err != nil {
+			return err
+		}
+		return locked.SaveTokens(ctx, refreshed)
+	})
+	if err != nil {
+		t.Fatalf("locked refresh: %v", err)
+	}
+	install, err := shops.GetInstall(ctx, shop)
+	if err != nil || install.AccessToken != "shpat_rotated" {
+		t.Fatalf("after refresh: %+v err %v", install, err)
+	}
+
+	if err := shops.SetNeedsReauth(ctx, shop); err != nil {
+		t.Fatalf("SetNeedsReauth: %v", err)
+	}
+	if listed, _ := shops.ListShopsWithExpiringRefreshTokens(ctx, time.Now().Add(100*24*time.Hour)); len(listed) != 0 {
+		t.Fatalf("a shop needing reauth must not be listed, got %v", listed)
+	}
+}
+
+// TestSettingsCacheInvalidation needs Redis too; it skips without
+// TEST_REDIS_URL.
+func TestSettingsCacheInvalidation(t *testing.T) {
+	redisURL := os.Getenv("TEST_REDIS_URL")
+	if redisURL == "" {
+		t.Skip("TEST_REDIS_URL not set, skipping Redis integration test")
+	}
+	database := testdb.Open(t)
+	ctx := context.Background()
+	c, err := cache.Connect(ctx, redisURL, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	cipher, _ := crypto.New(testKey)
+	shops := store.New(database.Gorm, cipher, c)
+	shop := fmt.Sprintf("cache-%d.myshopify.com", time.Now().UnixNano())
+	t.Cleanup(func() { shops.Delete(context.Background(), shop) })
+
+	if _, _, err := shops.SaveInstall(ctx, shop, testToken()); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if got, _ := shops.GetSettings(ctx, shop); !got.SyncEnabled {
+		t.Fatalf("defaults: %+v", got)
+	}
+
+	// Write behind the store's back: a cached read must not see it...
+	direct := store.ShopSettings{ShopDomain: shop, NotificationEmail: "direct@example.com", SyncEnabled: true}
+	if err := database.Gorm.Create(&direct).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := shops.GetSettings(ctx, shop); got.NotificationEmail != "" {
+		t.Fatalf("read should be served from cache, got %+v", got)
+	}
+
+	// ...while a save through the store invalidates it at once.
+	if _, err := shops.SaveSettings(ctx, shop, store.Settings{NotificationEmail: "ops@example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := shops.GetSettings(ctx, shop); got.NotificationEmail != "ops@example.com" || got.SyncEnabled {
+		t.Fatalf("after save: %+v", got)
 	}
 }

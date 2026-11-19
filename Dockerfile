@@ -1,6 +1,6 @@
 # Stage 1: build the frontend. The committed dist/ already works; this
 # stage rebuilds it so an image never ships a stale frontend.
-FROM oven/bun:1-alpine AS frontend
+FROM oven/bun:1.4.5-alpine AS frontend
 WORKDIR /src
 COPY package.json bun.lock ./
 COPY web/frontend/package.json web/frontend/
@@ -11,7 +11,7 @@ COPY web/frontend/ web/frontend/
 RUN bun run --cwd web/frontend build
 
 # Stage 2: build the server with the fresh frontend embedded.
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

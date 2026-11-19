@@ -11,29 +11,44 @@ import (
 )
 
 // Subscriber keeps a shop's dynamic webhook subscriptions matching the
-// registry: it creates missing ones, repoints ones whose callback URL
+// registry and each topic's When condition: it creates missing ones, repoints ones whose callback URL
 // changed (a new dev tunnel), and deletes ones the registry dropped. It only
 // ever touches subscriptions that point at this app's /webhooks endpoint.
 type Subscriber struct {
 	admin  *admin.Client
+	deps   Deps
 	host   string
 	logger *slog.Logger
 }
 
-// NewSubscriber wires a Subscriber. host is the app's public base URL.
-func NewSubscriber(adminClient *admin.Client, host string, logger *slog.Logger) *Subscriber {
-	return &Subscriber{admin: adminClient, host: host, logger: logger}
+// NewSubscriber wires a Subscriber. host is the app's public base URL; deps
+// is what registry When conditions may read.
+func NewSubscriber(deps Deps, host string) *Subscriber {
+	return &Subscriber{admin: deps.Admin, deps: deps, host: host, logger: deps.Logger}
 }
 
 // callbackURL is where every subscription points.
 func (s *Subscriber) callbackURL() string { return s.host + "/webhooks" }
 
-// Sync reconciles the shop's subscriptions with DynamicTopics. It is
-// idempotent and safe to run on every install and app open.
+// Sync reconciles the shop's subscriptions with the dynamic registry topics
+// whose When condition holds for the shop. It is idempotent and safe to run
+// on every install, app open and settings change.
 func (s *Subscriber) Sync(ctx context.Context, shop string) error {
 	wanted := map[string]bool{}
-	for _, topic := range DynamicTopics() {
-		wanted[topicEnum(topic)] = true
+	for _, registration := range Registry {
+		if registration.Source != SourceDynamic {
+			continue
+		}
+		if registration.When != nil {
+			ok, err := registration.When(ctx, s.deps, shop)
+			if err != nil {
+				return fmt.Errorf("webhooks: condition for %s: %w", registration.Topic, err)
+			}
+			if !ok {
+				continue
+			}
+		}
+		wanted[topicEnum(registration.Topic)] = true
 	}
 
 	existing, err := s.list(ctx, shop)

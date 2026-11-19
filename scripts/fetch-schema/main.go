@@ -31,7 +31,7 @@ func main() {
 func run() error {
 	version := os.Getenv("SHOPIFY_API_VERSION")
 	if version == "" {
-		version = "2026-07"
+		version = "2026-10"
 	}
 	endpoint := "https://shopify.dev/admin-graphql-direct-proxy/" + version
 

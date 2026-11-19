@@ -19,7 +19,8 @@ const (
 	// registers them.
 	SourceToml Source = iota
 	// SourceDynamic topics are shop-specific subscriptions this app
-	// creates at runtime through the Admin API (see subscribe.go).
+	// creates at runtime through the Admin API (see subscribe.go), for the
+	// shops its When condition selects.
 	SourceDynamic
 )
 
@@ -43,12 +44,21 @@ type Deps struct {
 // error makes the queue retry with backoff.
 type HandlerFunc func(ctx context.Context, deps Deps, delivery Delivery) error
 
+// ConditionFunc decides whether one shop should have a dynamic
+// subscription. It runs on every sync (each app open, and whenever your code
+// queues a jobs.SyncWebhooksArgs for the shop), so keep it cheap: read
+// cached settings, not the Admin API.
+type ConditionFunc func(ctx context.Context, deps Deps, shop string) (bool, error)
+
 // Registration wires one topic to its handler.
 type Registration struct {
 	// Topic in Shopify's path form, like "products/update".
 	Topic  string
 	Source Source
 	Handle HandlerFunc
+	// When selects the shops a SourceDynamic topic is subscribed for. Nil
+	// means every shop. Ignored for SourceToml topics.
+	When ConditionFunc
 }
 
 // Registry is the single place a webhook topic is added:
@@ -56,7 +66,12 @@ type Registration struct {
 //  1. Write a HandlerFunc (below or in its own file).
 //  2. Add a Registration here.
 //  3. SourceToml topics also go into shopify.app.toml's [webhooks] section;
-//     SourceDynamic topics are synced to every shop automatically.
+//     SourceDynamic topics are synced per shop, filtered by When.
+//
+// Before adding a topic, read docs/subscriptions.md: a subscription every
+// shop gets belongs in Events (internal/shopify/events), not here. This
+// registry is for the app lifecycle and compliance topics Events doesn't
+// cover, and for subscriptions that differ per shop.
 var Registry = []Registration{
 	{Topic: "app/uninstalled", Source: SourceToml, Handle: handleAppUninstalled},
 	{Topic: "app/scopes_update", Source: SourceToml, Handle: handleScopesUpdate},
@@ -65,9 +80,11 @@ var Registry = []Registration{
 	{Topic: "shop/redact", Source: SourceToml, Handle: handleShopRedact},
 
 	// Examples of shop-specific subscriptions created via the Admin API.
+	// products/update is the conditional pattern: only shops with sync
+	// enabled in Settings get it, and saving Settings re-syncs the shop.
 	// products/create also powers the subscribe/unsubscribe demo on the
 	// app's home page.
-	{Topic: "products/update", Source: SourceDynamic, Handle: handleProductsUpdate},
+	{Topic: "products/update", Source: SourceDynamic, Handle: handleProductsUpdate, When: syncEnabled},
 	{Topic: "products/create", Source: SourceDynamic, Handle: handleProductsCreate},
 
 	// Fires when a bulk operation this app started finishes; the handler
@@ -84,6 +101,16 @@ func Lookup(topic string) (Registration, bool) {
 		}
 	}
 	return Registration{}, false
+}
+
+// syncEnabled selects shops that turned sync on in Settings. GetSettings is
+// cached in Redis, so this costs nothing on a warm cache.
+func syncEnabled(ctx context.Context, deps Deps, shop string) (bool, error) {
+	settings, err := deps.Store.GetSettings(ctx, shop)
+	if err != nil {
+		return false, err
+	}
+	return settings.SyncEnabled, nil
 }
 
 // DynamicTopics lists the topics subscribe.go keeps in sync per shop.

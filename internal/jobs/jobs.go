@@ -6,6 +6,7 @@ package jobs
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -14,14 +15,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverdatabasesql"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/logging"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/events"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/tokens"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/webhooks"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
-	storegen "github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store/gen"
 )
 
 // webhookDeliveryRetention is how long processed delivery ids are kept for
@@ -64,6 +66,52 @@ func (w *WebhookWorker) Work(ctx context.Context, job *river.Job[WebhookArgs]) e
 		Topic:     job.Args.Topic,
 		WebhookID: job.Args.WebhookID,
 		Payload:   job.Args.Payload,
+	})
+}
+
+// EventArgs processes one verified Events delivery. Payload is the raw body.
+type EventArgs struct {
+	Shop      string          `json:"shop"`
+	Topic     string          `json:"topic"`
+	Action    string          `json:"action"`
+	Handle    string          `json:"handle"`
+	WebhookID string          `json:"webhook_id"`
+	RequestID string          `json:"request_id"`
+	Payload   json.RawMessage `json:"payload"`
+}
+
+// Kind names the job type.
+func (EventArgs) Kind() string { return "event-delivery" }
+
+// EventWorker dispatches an Events delivery to its registry handler.
+type EventWorker struct {
+	river.WorkerDefaults[EventArgs]
+	deps events.Deps
+}
+
+// Work decodes the delivery and runs the handler registered for its handle.
+func (w *EventWorker) Work(ctx context.Context, job *river.Job[EventArgs]) error {
+	handler, ok := events.Lookup(job.Args.Handle)
+	if !ok {
+		w.deps.Logger.Warn("[Jobs] No handler for event handle", "handle", job.Args.Handle)
+		return nil
+	}
+	var payload events.Payload
+	if err := json.Unmarshal(job.Args.Payload, &payload); err != nil {
+		// A body that won't decode will never decode: don't retry.
+		w.deps.Logger.Error("[Jobs] Unreadable event payload", "handle", job.Args.Handle, "shop", job.Args.Shop, "error", err)
+		return nil
+	}
+	w.deps.Logger.Info("[Jobs] Event delivery", "handle", job.Args.Handle, "topic", job.Args.Topic, "action", job.Args.Action, "shop", job.Args.Shop, "req", logging.ShortID(job.Args.RequestID), "attempt", job.Attempt)
+	return handler(ctx, w.deps, events.Delivery{
+		Shop:           job.Args.Shop,
+		Topic:          job.Args.Topic,
+		Action:         job.Args.Action,
+		Handle:         job.Args.Handle,
+		WebhookID:      job.Args.WebhookID,
+		Data:           payload.Data,
+		FieldsChanged:  payload.FieldsChanged,
+		QueryVariables: payload.QueryVariables,
 	})
 }
 
@@ -124,13 +172,13 @@ func (PruneWebhookDeliveriesArgs) Kind() string { return "prune-webhook-deliveri
 // PruneWebhookDeliveriesWorker deletes dedupe rows past retention.
 type PruneWebhookDeliveriesWorker struct {
 	river.WorkerDefaults[PruneWebhookDeliveriesArgs]
-	pool   *pgxpool.Pool
+	store  *store.Store
 	logger *slog.Logger
 }
 
 // Work prunes and logs how many rows went.
 func (w *PruneWebhookDeliveriesWorker) Work(ctx context.Context, job *river.Job[PruneWebhookDeliveriesArgs]) error {
-	pruned, err := storegen.New(w.pool).PruneWebhookDeliveries(ctx, time.Now().Add(-webhookDeliveryRetention))
+	pruned, err := w.store.PruneWebhookDeliveries(ctx, time.Now().Add(-webhookDeliveryRetention))
 	if err != nil {
 		return err
 	}
@@ -155,9 +203,10 @@ type Options struct {
 func NewClient(opts Options) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &WebhookWorker{deps: webhooks.Deps{Store: opts.Store, Admin: opts.Admin, Logger: opts.Logger}})
+	river.AddWorker(workers, &EventWorker{deps: events.Deps{Store: opts.Store, Admin: opts.Admin, Logger: opts.Logger}})
 	river.AddWorker(workers, &SyncWebhooksWorker{subscriber: opts.Subscriber})
 	river.AddWorker(workers, &TokenKeepAliveWorker{store: opts.Store, tokens: opts.Tokens, logger: opts.Logger})
-	river.AddWorker(workers, &PruneWebhookDeliveriesWorker{pool: opts.Pool, logger: opts.Logger})
+	river.AddWorker(workers, &PruneWebhookDeliveriesWorker{store: opts.Store, logger: opts.Logger})
 
 	client, err := river.NewClient(riverpgxv5.New(opts.Pool), &river.Config{
 		// River's own bookkeeping (producer counts, leadership) logs at
@@ -182,6 +231,20 @@ func NewClient(opts Options) (*river.Client[pgx.Tx], error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("jobs: %w", err)
+	}
+	return client, nil
+}
+
+// NewInserter builds an insert-only River client on database/sql. It exists
+// so a job can be enqueued inside a GORM transaction (River's InsertTx takes
+// the *sql.Tx under it, see store.SQLTx); it never works jobs itself, the
+// client from NewClient does. Both write to the same river_job table.
+func NewInserter(sqlDB *sql.DB, logger *slog.Logger) (*river.Client[*sql.Tx], error) {
+	client, err := river.NewClient(riverdatabasesql.New(sqlDB), &river.Config{
+		Logger: logging.WithMinLevel(logger, slog.LevelWarn),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("jobs: inserter: %w", err)
 	}
 	return client, nil
 }

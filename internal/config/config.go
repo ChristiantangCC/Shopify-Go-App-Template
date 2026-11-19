@@ -31,11 +31,15 @@ type Config struct {
 	// and authenticates token exchange.
 	ClientSecret string `env:"SHOPIFY_CLIENT_SECRET,required"`
 
-	// APIVersion is the Admin GraphQL API version, like "2026-07".
-	APIVersion string `env:"SHOPIFY_API_VERSION" envDefault:"2026-07"`
+	// APIVersion is the Admin GraphQL API version, like "2026-10".
+	APIVersion string `env:"SHOPIFY_API_VERSION" envDefault:"2026-10"`
 
 	// DatabaseURL is the Postgres connection string.
 	DatabaseURL string `env:"DATABASE_URL,required"`
+
+	// RedisURL is the Redis connection string (redis:// or rediss://). Redis
+	// only caches; Postgres stays the source of truth.
+	RedisURL string `env:"REDIS_URL,required"`
 
 	// EncryptionKey encrypts access and refresh tokens at rest:
 	// 64 hex characters (32 bytes). Generate with: openssl rand -hex 32

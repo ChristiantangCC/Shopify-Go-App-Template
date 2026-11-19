@@ -419,6 +419,8 @@ var AllBulkOperationErrorCode = []BulkOperationErrorCode{
 // BulkOperationNodeAbandonment
 // BulkOperationNodeAddAllProductsOperation
 // BulkOperationNodeAdditionalFee
+// BulkOperationNodeAnalyticsAnnotation
+// BulkOperationNodeAnalyticsTarget
 // BulkOperationNodeApp
 // BulkOperationNodeAppCatalog
 // BulkOperationNodeAppCredit
@@ -515,6 +517,8 @@ var AllBulkOperationErrorCode = []BulkOperationErrorCode{
 // BulkOperationNodeInventoryItem
 // BulkOperationNodeInventoryItemMeasurement
 // BulkOperationNodeInventoryLevel
+// BulkOperationNodeInventoryPurchaseOrder
+// BulkOperationNodeInventoryPurchaseOrderLineItem
 // BulkOperationNodeInventoryQuantity
 // BulkOperationNodeInventoryShipment
 // BulkOperationNodeInventoryShipmentLineItem
@@ -528,6 +532,7 @@ var AllBulkOperationErrorCode = []BulkOperationErrorCode{
 // BulkOperationNodeMarketCatalog
 // BulkOperationNodeMarketRegionCountry
 // BulkOperationNodeMarketRegionSubdivision
+// BulkOperationNodeMarketRelationship
 // BulkOperationNodeMarketWebPresence
 // BulkOperationNodeMarketingActivity
 // BulkOperationNodeMarketingEvent
@@ -542,6 +547,7 @@ var AllBulkOperationErrorCode = []BulkOperationErrorCode{
 // BulkOperationNodeOrder
 // BulkOperationNodeOrderAdjustment
 // BulkOperationNodeOrderAttributionDefinition
+// BulkOperationNodeOrderCancelJobResult
 // BulkOperationNodeOrderCreateMandatePaymentJobResult
 // BulkOperationNodeOrderDisputeSummary
 // BulkOperationNodeOrderEditSession
@@ -555,8 +561,6 @@ var AllBulkOperationErrorCode = []BulkOperationErrorCode{
 // BulkOperationNodePointOfSaleDevice
 // BulkOperationNodePointOfSaleDevicePaymentSession
 // BulkOperationNodePriceList
-// BulkOperationNodePriceRule
-// BulkOperationNodePriceRuleDiscountCode
 // BulkOperationNodeProduct
 // BulkOperationNodeProductBundleOperation
 // BulkOperationNodeProductDeleteOperation
@@ -573,8 +577,11 @@ var AllBulkOperationErrorCode = []BulkOperationErrorCode{
 // BulkOperationNodeQuantityPriceBreak
 // BulkOperationNodeRefund
 // BulkOperationNodeRefundShippingLine
+// BulkOperationNodeRequestedOrderEdit
+// BulkOperationNodeRequestedOrderEditLineItem
 // BulkOperationNodeReturn
 // BulkOperationNodeReturnLineItem
+// BulkOperationNodeReturnPolicyProfile
 // BulkOperationNodeReturnReasonDefinition
 // BulkOperationNodeReturnableFulfillment
 // BulkOperationNodeReverseDelivery
@@ -582,6 +589,8 @@ var AllBulkOperationErrorCode = []BulkOperationErrorCode{
 // BulkOperationNodeReverseFulfillmentOrder
 // BulkOperationNodeReverseFulfillmentOrderDisposition
 // BulkOperationNodeReverseFulfillmentOrderLineItem
+// BulkOperationNodeRollout
+// BulkOperationNodeRolloutTreatment
 // BulkOperationNodeSaleAdditionalFee
 // BulkOperationNodeSavedSearch
 // BulkOperationNodeScriptTag
@@ -643,6 +652,8 @@ func (v *BulkOperationNodeAbandonedCheckoutLineItem) implementsGraphQLInterfaceB
 func (v *BulkOperationNodeAbandonment) implementsGraphQLInterfaceBulkOperationNode()               {}
 func (v *BulkOperationNodeAddAllProductsOperation) implementsGraphQLInterfaceBulkOperationNode()   {}
 func (v *BulkOperationNodeAdditionalFee) implementsGraphQLInterfaceBulkOperationNode()             {}
+func (v *BulkOperationNodeAnalyticsAnnotation) implementsGraphQLInterfaceBulkOperationNode()       {}
+func (v *BulkOperationNodeAnalyticsTarget) implementsGraphQLInterfaceBulkOperationNode()           {}
 func (v *BulkOperationNodeApp) implementsGraphQLInterfaceBulkOperationNode()                       {}
 func (v *BulkOperationNodeAppCatalog) implementsGraphQLInterfaceBulkOperationNode()                {}
 func (v *BulkOperationNodeAppCredit) implementsGraphQLInterfaceBulkOperationNode()                 {}
@@ -753,6 +764,9 @@ func (v *BulkOperationNodeInventoryAdjustmentGroup) implementsGraphQLInterfaceBu
 func (v *BulkOperationNodeInventoryItem) implementsGraphQLInterfaceBulkOperationNode()              {}
 func (v *BulkOperationNodeInventoryItemMeasurement) implementsGraphQLInterfaceBulkOperationNode()   {}
 func (v *BulkOperationNodeInventoryLevel) implementsGraphQLInterfaceBulkOperationNode()             {}
+func (v *BulkOperationNodeInventoryPurchaseOrder) implementsGraphQLInterfaceBulkOperationNode()     {}
+func (v *BulkOperationNodeInventoryPurchaseOrderLineItem) implementsGraphQLInterfaceBulkOperationNode() {
+}
 func (v *BulkOperationNodeInventoryQuantity) implementsGraphQLInterfaceBulkOperationNode()          {}
 func (v *BulkOperationNodeInventoryShipment) implementsGraphQLInterfaceBulkOperationNode()          {}
 func (v *BulkOperationNodeInventoryShipmentLineItem) implementsGraphQLInterfaceBulkOperationNode()  {}
@@ -766,6 +780,7 @@ func (v *BulkOperationNodeMarket) implementsGraphQLInterfaceBulkOperationNode() 
 func (v *BulkOperationNodeMarketCatalog) implementsGraphQLInterfaceBulkOperationNode()              {}
 func (v *BulkOperationNodeMarketRegionCountry) implementsGraphQLInterfaceBulkOperationNode()        {}
 func (v *BulkOperationNodeMarketRegionSubdivision) implementsGraphQLInterfaceBulkOperationNode()    {}
+func (v *BulkOperationNodeMarketRelationship) implementsGraphQLInterfaceBulkOperationNode()         {}
 func (v *BulkOperationNodeMarketWebPresence) implementsGraphQLInterfaceBulkOperationNode()          {}
 func (v *BulkOperationNodeMarketingActivity) implementsGraphQLInterfaceBulkOperationNode()          {}
 func (v *BulkOperationNodeMarketingEvent) implementsGraphQLInterfaceBulkOperationNode()             {}
@@ -780,6 +795,7 @@ func (v *BulkOperationNodeOnlineStoreTheme) implementsGraphQLInterfaceBulkOperat
 func (v *BulkOperationNodeOrder) implementsGraphQLInterfaceBulkOperationNode()                      {}
 func (v *BulkOperationNodeOrderAdjustment) implementsGraphQLInterfaceBulkOperationNode()            {}
 func (v *BulkOperationNodeOrderAttributionDefinition) implementsGraphQLInterfaceBulkOperationNode() {}
+func (v *BulkOperationNodeOrderCancelJobResult) implementsGraphQLInterfaceBulkOperationNode()       {}
 func (v *BulkOperationNodeOrderCreateMandatePaymentJobResult) implementsGraphQLInterfaceBulkOperationNode() {
 }
 func (v *BulkOperationNodeOrderDisputeSummary) implementsGraphQLInterfaceBulkOperationNode()  {}
@@ -795,8 +811,6 @@ func (v *BulkOperationNodePointOfSaleDevice) implementsGraphQLInterfaceBulkOpera
 func (v *BulkOperationNodePointOfSaleDevicePaymentSession) implementsGraphQLInterfaceBulkOperationNode() {
 }
 func (v *BulkOperationNodePriceList) implementsGraphQLInterfaceBulkOperationNode()                 {}
-func (v *BulkOperationNodePriceRule) implementsGraphQLInterfaceBulkOperationNode()                 {}
-func (v *BulkOperationNodePriceRuleDiscountCode) implementsGraphQLInterfaceBulkOperationNode()     {}
 func (v *BulkOperationNodeProduct) implementsGraphQLInterfaceBulkOperationNode()                   {}
 func (v *BulkOperationNodeProductBundleOperation) implementsGraphQLInterfaceBulkOperationNode()    {}
 func (v *BulkOperationNodeProductDeleteOperation) implementsGraphQLInterfaceBulkOperationNode()    {}
@@ -811,20 +825,25 @@ func (v *BulkOperationNodeProductVariantComponent) implementsGraphQLInterfaceBul
 func (v *BulkOperationNodePublication) implementsGraphQLInterfaceBulkOperationNode()               {}
 func (v *BulkOperationNodePublicationResourceOperation) implementsGraphQLInterfaceBulkOperationNode() {
 }
-func (v *BulkOperationNodeQuantityPriceBreak) implementsGraphQLInterfaceBulkOperationNode()      {}
-func (v *BulkOperationNodeRefund) implementsGraphQLInterfaceBulkOperationNode()                  {}
-func (v *BulkOperationNodeRefundShippingLine) implementsGraphQLInterfaceBulkOperationNode()      {}
-func (v *BulkOperationNodeReturn) implementsGraphQLInterfaceBulkOperationNode()                  {}
-func (v *BulkOperationNodeReturnLineItem) implementsGraphQLInterfaceBulkOperationNode()          {}
-func (v *BulkOperationNodeReturnReasonDefinition) implementsGraphQLInterfaceBulkOperationNode()  {}
-func (v *BulkOperationNodeReturnableFulfillment) implementsGraphQLInterfaceBulkOperationNode()   {}
-func (v *BulkOperationNodeReverseDelivery) implementsGraphQLInterfaceBulkOperationNode()         {}
-func (v *BulkOperationNodeReverseDeliveryLineItem) implementsGraphQLInterfaceBulkOperationNode() {}
-func (v *BulkOperationNodeReverseFulfillmentOrder) implementsGraphQLInterfaceBulkOperationNode() {}
+func (v *BulkOperationNodeQuantityPriceBreak) implementsGraphQLInterfaceBulkOperationNode()         {}
+func (v *BulkOperationNodeRefund) implementsGraphQLInterfaceBulkOperationNode()                     {}
+func (v *BulkOperationNodeRefundShippingLine) implementsGraphQLInterfaceBulkOperationNode()         {}
+func (v *BulkOperationNodeRequestedOrderEdit) implementsGraphQLInterfaceBulkOperationNode()         {}
+func (v *BulkOperationNodeRequestedOrderEditLineItem) implementsGraphQLInterfaceBulkOperationNode() {}
+func (v *BulkOperationNodeReturn) implementsGraphQLInterfaceBulkOperationNode()                     {}
+func (v *BulkOperationNodeReturnLineItem) implementsGraphQLInterfaceBulkOperationNode()             {}
+func (v *BulkOperationNodeReturnPolicyProfile) implementsGraphQLInterfaceBulkOperationNode()        {}
+func (v *BulkOperationNodeReturnReasonDefinition) implementsGraphQLInterfaceBulkOperationNode()     {}
+func (v *BulkOperationNodeReturnableFulfillment) implementsGraphQLInterfaceBulkOperationNode()      {}
+func (v *BulkOperationNodeReverseDelivery) implementsGraphQLInterfaceBulkOperationNode()            {}
+func (v *BulkOperationNodeReverseDeliveryLineItem) implementsGraphQLInterfaceBulkOperationNode()    {}
+func (v *BulkOperationNodeReverseFulfillmentOrder) implementsGraphQLInterfaceBulkOperationNode()    {}
 func (v *BulkOperationNodeReverseFulfillmentOrderDisposition) implementsGraphQLInterfaceBulkOperationNode() {
 }
 func (v *BulkOperationNodeReverseFulfillmentOrderLineItem) implementsGraphQLInterfaceBulkOperationNode() {
 }
+func (v *BulkOperationNodeRollout) implementsGraphQLInterfaceBulkOperationNode()           {}
+func (v *BulkOperationNodeRolloutTreatment) implementsGraphQLInterfaceBulkOperationNode()  {}
 func (v *BulkOperationNodeSaleAdditionalFee) implementsGraphQLInterfaceBulkOperationNode() {}
 func (v *BulkOperationNodeSavedSearch) implementsGraphQLInterfaceBulkOperationNode()       {}
 func (v *BulkOperationNodeScriptTag) implementsGraphQLInterfaceBulkOperationNode()         {}
@@ -909,6 +928,12 @@ func __unmarshalBulkOperationNode(b []byte, v *BulkOperationNode) error {
 		return json.Unmarshal(b, *v)
 	case "AdditionalFee":
 		*v = new(BulkOperationNodeAdditionalFee)
+		return json.Unmarshal(b, *v)
+	case "AnalyticsAnnotation":
+		*v = new(BulkOperationNodeAnalyticsAnnotation)
+		return json.Unmarshal(b, *v)
+	case "AnalyticsTarget":
+		*v = new(BulkOperationNodeAnalyticsTarget)
 		return json.Unmarshal(b, *v)
 	case "App":
 		*v = new(BulkOperationNodeApp)
@@ -1198,6 +1223,12 @@ func __unmarshalBulkOperationNode(b []byte, v *BulkOperationNode) error {
 	case "InventoryLevel":
 		*v = new(BulkOperationNodeInventoryLevel)
 		return json.Unmarshal(b, *v)
+	case "InventoryPurchaseOrder":
+		*v = new(BulkOperationNodeInventoryPurchaseOrder)
+		return json.Unmarshal(b, *v)
+	case "InventoryPurchaseOrderLineItem":
+		*v = new(BulkOperationNodeInventoryPurchaseOrderLineItem)
+		return json.Unmarshal(b, *v)
 	case "InventoryQuantity":
 		*v = new(BulkOperationNodeInventoryQuantity)
 		return json.Unmarshal(b, *v)
@@ -1236,6 +1267,9 @@ func __unmarshalBulkOperationNode(b []byte, v *BulkOperationNode) error {
 		return json.Unmarshal(b, *v)
 	case "MarketRegionSubdivision":
 		*v = new(BulkOperationNodeMarketRegionSubdivision)
+		return json.Unmarshal(b, *v)
+	case "MarketRelationship":
+		*v = new(BulkOperationNodeMarketRelationship)
 		return json.Unmarshal(b, *v)
 	case "MarketWebPresence":
 		*v = new(BulkOperationNodeMarketWebPresence)
@@ -1279,6 +1313,9 @@ func __unmarshalBulkOperationNode(b []byte, v *BulkOperationNode) error {
 	case "OrderAttributionDefinition":
 		*v = new(BulkOperationNodeOrderAttributionDefinition)
 		return json.Unmarshal(b, *v)
+	case "OrderCancelJobResult":
+		*v = new(BulkOperationNodeOrderCancelJobResult)
+		return json.Unmarshal(b, *v)
 	case "OrderCreateMandatePaymentJobResult":
 		*v = new(BulkOperationNodeOrderCreateMandatePaymentJobResult)
 		return json.Unmarshal(b, *v)
@@ -1317,12 +1354,6 @@ func __unmarshalBulkOperationNode(b []byte, v *BulkOperationNode) error {
 		return json.Unmarshal(b, *v)
 	case "PriceList":
 		*v = new(BulkOperationNodePriceList)
-		return json.Unmarshal(b, *v)
-	case "PriceRule":
-		*v = new(BulkOperationNodePriceRule)
-		return json.Unmarshal(b, *v)
-	case "PriceRuleDiscountCode":
-		*v = new(BulkOperationNodePriceRuleDiscountCode)
 		return json.Unmarshal(b, *v)
 	case "Product":
 		*v = new(BulkOperationNodeProduct)
@@ -1372,11 +1403,20 @@ func __unmarshalBulkOperationNode(b []byte, v *BulkOperationNode) error {
 	case "RefundShippingLine":
 		*v = new(BulkOperationNodeRefundShippingLine)
 		return json.Unmarshal(b, *v)
+	case "RequestedOrderEdit":
+		*v = new(BulkOperationNodeRequestedOrderEdit)
+		return json.Unmarshal(b, *v)
+	case "RequestedOrderEditLineItem":
+		*v = new(BulkOperationNodeRequestedOrderEditLineItem)
+		return json.Unmarshal(b, *v)
 	case "Return":
 		*v = new(BulkOperationNodeReturn)
 		return json.Unmarshal(b, *v)
 	case "ReturnLineItem":
 		*v = new(BulkOperationNodeReturnLineItem)
+		return json.Unmarshal(b, *v)
+	case "ReturnPolicyProfile":
+		*v = new(BulkOperationNodeReturnPolicyProfile)
 		return json.Unmarshal(b, *v)
 	case "ReturnReasonDefinition":
 		*v = new(BulkOperationNodeReturnReasonDefinition)
@@ -1398,6 +1438,12 @@ func __unmarshalBulkOperationNode(b []byte, v *BulkOperationNode) error {
 		return json.Unmarshal(b, *v)
 	case "ReverseFulfillmentOrderLineItem":
 		*v = new(BulkOperationNodeReverseFulfillmentOrderLineItem)
+		return json.Unmarshal(b, *v)
+	case "Rollout":
+		*v = new(BulkOperationNodeRollout)
+		return json.Unmarshal(b, *v)
+	case "RolloutTreatment":
+		*v = new(BulkOperationNodeRolloutTreatment)
 		return json.Unmarshal(b, *v)
 	case "SaleAdditionalFee":
 		*v = new(BulkOperationNodeSaleAdditionalFee)
@@ -1582,6 +1628,22 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 		result := struct {
 			TypeName string `json:"__typename"`
 			*BulkOperationNodeAdditionalFee
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeAnalyticsAnnotation:
+		typename = "AnalyticsAnnotation"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeAnalyticsAnnotation
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeAnalyticsTarget:
+		typename = "AnalyticsTarget"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeAnalyticsTarget
 		}{typename, v}
 		return json.Marshal(result)
 	case *BulkOperationNodeApp:
@@ -2352,6 +2414,22 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 			*BulkOperationNodeInventoryLevel
 		}{typename, v}
 		return json.Marshal(result)
+	case *BulkOperationNodeInventoryPurchaseOrder:
+		typename = "InventoryPurchaseOrder"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeInventoryPurchaseOrder
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeInventoryPurchaseOrderLineItem:
+		typename = "InventoryPurchaseOrderLineItem"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeInventoryPurchaseOrderLineItem
+		}{typename, v}
+		return json.Marshal(result)
 	case *BulkOperationNodeInventoryQuantity:
 		typename = "InventoryQuantity"
 
@@ -2454,6 +2532,14 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 		result := struct {
 			TypeName string `json:"__typename"`
 			*BulkOperationNodeMarketRegionSubdivision
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeMarketRelationship:
+		typename = "MarketRelationship"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeMarketRelationship
 		}{typename, v}
 		return json.Marshal(result)
 	case *BulkOperationNodeMarketWebPresence:
@@ -2568,6 +2654,14 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 			*BulkOperationNodeOrderAttributionDefinition
 		}{typename, v}
 		return json.Marshal(result)
+	case *BulkOperationNodeOrderCancelJobResult:
+		typename = "OrderCancelJobResult"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeOrderCancelJobResult
+		}{typename, v}
+		return json.Marshal(result)
 	case *BulkOperationNodeOrderCreateMandatePaymentJobResult:
 		typename = "OrderCreateMandatePaymentJobResult"
 
@@ -2670,22 +2764,6 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 		result := struct {
 			TypeName string `json:"__typename"`
 			*BulkOperationNodePriceList
-		}{typename, v}
-		return json.Marshal(result)
-	case *BulkOperationNodePriceRule:
-		typename = "PriceRule"
-
-		result := struct {
-			TypeName string `json:"__typename"`
-			*BulkOperationNodePriceRule
-		}{typename, v}
-		return json.Marshal(result)
-	case *BulkOperationNodePriceRuleDiscountCode:
-		typename = "PriceRuleDiscountCode"
-
-		result := struct {
-			TypeName string `json:"__typename"`
-			*BulkOperationNodePriceRuleDiscountCode
 		}{typename, v}
 		return json.Marshal(result)
 	case *BulkOperationNodeProduct:
@@ -2816,6 +2894,22 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 			*BulkOperationNodeRefundShippingLine
 		}{typename, v}
 		return json.Marshal(result)
+	case *BulkOperationNodeRequestedOrderEdit:
+		typename = "RequestedOrderEdit"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeRequestedOrderEdit
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeRequestedOrderEditLineItem:
+		typename = "RequestedOrderEditLineItem"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeRequestedOrderEditLineItem
+		}{typename, v}
+		return json.Marshal(result)
 	case *BulkOperationNodeReturn:
 		typename = "Return"
 
@@ -2830,6 +2924,14 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 		result := struct {
 			TypeName string `json:"__typename"`
 			*BulkOperationNodeReturnLineItem
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeReturnPolicyProfile:
+		typename = "ReturnPolicyProfile"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeReturnPolicyProfile
 		}{typename, v}
 		return json.Marshal(result)
 	case *BulkOperationNodeReturnReasonDefinition:
@@ -2886,6 +2988,22 @@ func __marshalBulkOperationNode(v *BulkOperationNode) ([]byte, error) {
 		result := struct {
 			TypeName string `json:"__typename"`
 			*BulkOperationNodeReverseFulfillmentOrderLineItem
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeRollout:
+		typename = "Rollout"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeRollout
+		}{typename, v}
+		return json.Marshal(result)
+	case *BulkOperationNodeRolloutTreatment:
+		typename = "RolloutTreatment"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*BulkOperationNodeRolloutTreatment
 		}{typename, v}
 		return json.Marshal(result)
 	case *BulkOperationNodeSaleAdditionalFee:
@@ -3309,6 +3427,39 @@ type BulkOperationNodeAdditionalFee struct {
 // GetTypename returns BulkOperationNodeAdditionalFee.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodeAdditionalFee) GetTypename() *string { return v.Typename }
 
+// BulkOperationNodeAnalyticsAnnotation includes the requested fields of the GraphQL type AnalyticsAnnotation.
+// The GraphQL type's documentation follows.
+//
+// An annotation for a notable event on a shop's analytics timeline.
+type BulkOperationNodeAnalyticsAnnotation struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeAnalyticsAnnotation.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeAnalyticsAnnotation) GetTypename() *string { return v.Typename }
+
+// BulkOperationNodeAnalyticsTarget includes the requested fields of the GraphQL type AnalyticsTarget.
+// The GraphQL type's documentation follows.
+//
+// Represents a merchant-defined goal for a specific analytics metric over a date range.
+// Merchants use analytics targets to track progress toward business objectives, such as reaching
+// a total sales amount or a number of orders within a given period.
+//
+// Each target is associated with a single metric and can optionally include filter expressions to
+// narrow the evaluated data. Use the
+// [`analyticsTargets`](https://shopify.dev/docs/api/admin-graphql/latest/queries/analyticsTargets) query
+// to retrieve targets, and the
+// [`analyticsTargetCreate`](https://shopify.dev/docs/api/admin-graphql/latest/mutations/analyticsTargetCreate),
+// [`analyticsTargetUpdate`](https://shopify.dev/docs/api/admin-graphql/latest/mutations/analyticsTargetUpdate),
+// and [`analyticsTargetsDelete`](https://shopify.dev/docs/api/admin-graphql/latest/mutations/analyticsTargetsDelete)
+// mutations to manage them.
+type BulkOperationNodeAnalyticsTarget struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeAnalyticsTarget.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeAnalyticsTarget) GetTypename() *string { return v.Typename }
+
 // BulkOperationNodeApp includes the requested fields of the GraphQL type App.
 // The GraphQL type's documentation follows.
 //
@@ -3484,7 +3635,7 @@ func (v *BulkOperationNodeArticle) GetTypename() *string { return v.Typename }
 // - *Capture*: Includes whether the capture succeeded, failed, or is pending.
 // - *Email*: Includes confirmation or cancellation of the order, as well as shipping.
 // - *Fulfillment*: Includes whether the fulfillment succeeded, failed, or is pending. Also includes cancellation, restocking, and fulfillment updates.
-// - *Order*: Includess the placement, confirmation, closing, re-opening, and cancellation of the order.
+// - *Order*: Includes the placement, confirmation, closing, re-opening, and cancellation of the order.
 // - *Refund*: Includes whether the refund succeeded, failed, or is pending.
 // - *Sale*: Includes whether the sale succeeded, failed, or is pending.
 // - *Void*: Includes whether the void succeeded, failed, or is pending.
@@ -4142,9 +4293,9 @@ func (v *BulkOperationNodeCustomerVisit) GetTypename() *string { return v.Typena
 // "currency": "USD",
 // "locale": "en",
 // "order_totals": {
-// "subtotal_price": "1999",
-// "total_price": "2199",
-// "discount_amount": "150"
+// "subtotal_price": 1999,
+// "total_price": 1849,
+// "discount_amount": 150
 // },
 // "customer": {
 // "id": 207119551,
@@ -4205,6 +4356,20 @@ func (v *BulkOperationNodeCustomerVisit) GetTypename() *string { return v.Typena
 //
 // Other values remain as `null` and are not sent to the callback URL.
 //
+// ### Order totals
+//
+// When Shopify has the cart's totals, the request includes an `order_totals` object. Each amount is an integer in the smallest unit of the shop's currency (for example, cents), so `1999` is 19.99.
+//
+// The totals cover the cart's merchandise, not the `items` in this request, so don't expect them to add up to the `items` prices. They can include items that aren't listed in `items`, such as items that don't require shipping, or items in another rate request when Shopify splits the cart by origin location or shipping profile. At checkout, none of the amounts include shipping, and the fields mean the following:
+//
+// | Field             | Description                                                                                                                                                                                    |
+// | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+// | `subtotal_price`  | The total price of the cart's merchandise, before discounts. Gift cards aren't included. When a checkout splits items between shipping and pickup, the pickup items aren't counted.            |
+// | `discount_amount` | The total of the discounts applied to the cart's merchandise, or `0` when no discounts apply. In a checkout split between shipping and pickup, this can include discounts on the pickup items. |
+// | `total_price`     | `subtotal_price` minus `discount_amount`, but never less than `0`.                                                                                                                             |
+//
+// Shopify calculates these totals differently when an existing order is edited. For example, `subtotal_price` can then include shipping and taxes.
+//
 // ### Response fields
 //
 // When Shopify requests shipping rates using your callback URL, the response object `rates` must be a JSON array of objects with the following fields.  Required fields must be included in the response for the carrier service integration to work properly.
@@ -4240,7 +4405,7 @@ func (v *BulkOperationNodeCustomerVisit) GetTypename() *string { return v.Typena
 // | Over 3000     | 3s         |
 //
 // > Note:
-// > These values are upper limits and should not be interpretted as a goal to develop towards. Shopify is constantly evaluating the performance of the platform and working towards improving resilience as well as app capabilities. As such, these numbers may be adjusted outside of our normal versioning timelines.
+// > These values are upper limits and should not be interpreted as a goal to develop towards. Shopify is constantly evaluating the performance of the platform and working towards improving resilience as well as app capabilities. As such, these numbers may be adjusted outside of our normal versioning timelines.
 //
 // ## Server-side caching of requests
 // Shopify provides server-side caching to reduce the number of requests it makes. Any shipping rate request that identically matches the following fields will be retrieved from Shopify's cache of the initial response:
@@ -4348,6 +4513,8 @@ func (v *BulkOperationNodeDeliveryParticipant) GetTypename() *string { return v.
 // A shipping profile that defines shipping rates for specific [`Product`](https://shopify.dev/docs/api/admin-graphql/latest/objects/Product) objects and [`ProductVariant`](https://shopify.dev/docs/api/admin-graphql/latest/objects/ProductVariant) objects. Delivery profiles determine which products can ship from which [`Location`](https://shopify.dev/docs/api/admin-graphql/latest/objects/Location) objects to which zones, and at what rates.
 //
 // Profiles can associate with [`SellingPlanGroup`](https://shopify.dev/docs/api/admin-graphql/latest/objects/SellingPlanGroup) objects to provide custom shipping rules for subscriptions, such as free shipping or restricted delivery zones. The default profile applies to all products that aren't assigned to other profiles.
+//
+// **Shops that use market-driven shipping:** If the shop uses market-driven shipping (check it with `shop { features { marketDrivenShipping } }`, see [`ShopFeatures.marketDrivenShipping`](https://shopify.dev/docs/api/admin-graphql/latest/objects/ShopFeatures)), checkout combines the shipping rates and options from the shop's market configuration and app-owned delivery profiles. Zones and rates from merchant-managed delivery profiles are ignored. In practice, merchant-managed profiles are the profiles that the [`merchantOwnedOnly`](https://shopify.dev/docs/api/admin-graphql/latest/queries/deliveryProfiles#arguments-merchantOwnedOnly) filter returns. Shipping options from merchant-managed delivery profiles are still saved on a shop, but these rates may differ from what buyers pay and should not be relied on. Read the current shipping configuration from the [`Market`](https://shopify.dev/docs/api/admin-graphql/latest/objects/Market) object's `delivery.shipping` field instead. The `marketDrivenShipping` check and the `Market.delivery` field require API version 2026-07 or later.
 //
 // Learn more about [building delivery profiles](https://shopify.dev/apps/build/purchase-options/deferred/delivery-and-deferment/build-delivery-profiles).
 type BulkOperationNodeDeliveryProfile struct {
@@ -5002,11 +5169,36 @@ type BulkOperationNodeInventoryLevel struct {
 // GetTypename returns BulkOperationNodeInventoryLevel.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodeInventoryLevel) GetTypename() *string { return v.Typename }
 
+// BulkOperationNodeInventoryPurchaseOrder includes the requested fields of the GraphQL type InventoryPurchaseOrder.
+// The GraphQL type's documentation follows.
+//
+// A purchase order represents an agreement from a merchant to buy goods or services from a supplier.
+// While the agreement is captured on the merchant's side as a purchase order, it’s recorded as a sales order
+// on the supplier side.
+type BulkOperationNodeInventoryPurchaseOrder struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeInventoryPurchaseOrder.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeInventoryPurchaseOrder) GetTypename() *string { return v.Typename }
+
+// BulkOperationNodeInventoryPurchaseOrderLineItem includes the requested fields of the GraphQL type InventoryPurchaseOrderLineItem.
+// The GraphQL type's documentation follows.
+//
+// Represents a line item belonging to an inventory purchase order.
+// This is a simplified view of the purchase order line item for inventory management purposes.
+type BulkOperationNodeInventoryPurchaseOrderLineItem struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeInventoryPurchaseOrderLineItem.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeInventoryPurchaseOrderLineItem) GetTypename() *string { return v.Typename }
+
 // BulkOperationNodeInventoryQuantity includes the requested fields of the GraphQL type InventoryQuantity.
 // The GraphQL type's documentation follows.
 //
 // The `InventoryQuantity` object lets you manage and track inventory quantities for specific [states](https://shopify.dev/docs/apps/fulfillment/inventory-management-apps#inventory-states).
-// Inventory quantities represent different states of items such as available for purchase, committed to orders, reserved for drafts, incoming from suppliers, or set aside for quality control or safety stock.
+// Inventory quantities represent different states of items such as available for purchase, committed to orders, draft orders, transfers, or shipments, reserved by the merchant, incoming from suppliers, or set aside for quality control or safety stock.
 //
 // You can use [inventory levels](https://shopify.dev/docs/api/admin-graphql/latest/objects/inventorylevel) to manage where inventory items are stocked. You can also [make inventory adjustments](https://shopify.dev/docs/api/admin-graphql/latest/mutations/inventoryAdjustQuantities) to apply changes to inventory quantities.
 //
@@ -5189,6 +5381,17 @@ type BulkOperationNodeMarketRegionSubdivision struct {
 
 // GetTypename returns BulkOperationNodeMarketRegionSubdivision.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodeMarketRegionSubdivision) GetTypename() *string { return v.Typename }
+
+// BulkOperationNodeMarketRelationship includes the requested fields of the GraphQL type MarketRelationship.
+// The GraphQL type's documentation follows.
+//
+// Represents a parent/child relationship between two markets.
+type BulkOperationNodeMarketRelationship struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeMarketRelationship.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeMarketRelationship) GetTypename() *string { return v.Typename }
 
 // BulkOperationNodeMarketWebPresence includes the requested fields of the GraphQL type MarketWebPresence.
 // The GraphQL type's documentation follows.
@@ -5425,6 +5628,17 @@ type BulkOperationNodeOrderAttributionDefinition struct {
 // GetTypename returns BulkOperationNodeOrderAttributionDefinition.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodeOrderAttributionDefinition) GetTypename() *string { return v.Typename }
 
+// BulkOperationNodeOrderCancelJobResult includes the requested fields of the GraphQL type OrderCancelJobResult.
+// The GraphQL type's documentation follows.
+//
+// A job to determine the result of an order cancellation request.
+type BulkOperationNodeOrderCancelJobResult struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeOrderCancelJobResult.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeOrderCancelJobResult) GetTypename() *string { return v.Typename }
+
 // BulkOperationNodeOrderCreateMandatePaymentJobResult includes the requested fields of the GraphQL type OrderCreateMandatePaymentJobResult.
 // The GraphQL type's documentation follows.
 //
@@ -5601,31 +5815,6 @@ type BulkOperationNodePriceList struct {
 
 // GetTypename returns BulkOperationNodePriceList.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodePriceList) GetTypename() *string { return v.Typename }
-
-// BulkOperationNodePriceRule includes the requested fields of the GraphQL type PriceRule.
-// The GraphQL type's documentation follows.
-//
-// A set of conditions, including entitlements and prerequisites, that must be met for a discount code to apply.
-//
-// > Note:
-// > Use the types and queries included our [discount tutorials](https://shopify.dev/docs/apps/selling-strategies/discounts/getting-started) instead. These will replace the GraphQL Admin API's [`PriceRule`](https://shopify.dev/docs/api/admin-graphql/latest/objects/PriceRule) object and [`DiscountCode`](https://shopify.dev/docs/api/admin-graphql/latest/unions/DiscountCode) union, and the REST Admin API's deprecated[`PriceRule`](https://shopify.dev/docs/api/admin-rest/unstable/resources/pricerule) resource.
-type BulkOperationNodePriceRule struct {
-	Typename *string `json:"__typename"`
-}
-
-// GetTypename returns BulkOperationNodePriceRule.Typename, and is useful for accessing the field via an interface.
-func (v *BulkOperationNodePriceRule) GetTypename() *string { return v.Typename }
-
-// BulkOperationNodePriceRuleDiscountCode includes the requested fields of the GraphQL type PriceRuleDiscountCode.
-// The GraphQL type's documentation follows.
-//
-// A discount code of a price rule.
-type BulkOperationNodePriceRuleDiscountCode struct {
-	Typename *string `json:"__typename"`
-}
-
-// GetTypename returns BulkOperationNodePriceRuleDiscountCode.Typename, and is useful for accessing the field via an interface.
-func (v *BulkOperationNodePriceRuleDiscountCode) GetTypename() *string { return v.Typename }
 
 // BulkOperationNodeProduct includes the requested fields of the GraphQL type Product.
 // The GraphQL type's documentation follows.
@@ -5934,6 +6123,28 @@ type BulkOperationNodeRefundShippingLine struct {
 // GetTypename returns BulkOperationNodeRefundShippingLine.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodeRefundShippingLine) GetTypename() *string { return v.Typename }
 
+// BulkOperationNodeRequestedOrderEdit includes the requested fields of the GraphQL type RequestedOrderEdit.
+// The GraphQL type's documentation follows.
+//
+// A buyer-initiated request to edit unfulfilled line items on an order.
+type BulkOperationNodeRequestedOrderEdit struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeRequestedOrderEdit.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeRequestedOrderEdit) GetTypename() *string { return v.Typename }
+
+// BulkOperationNodeRequestedOrderEditLineItem includes the requested fields of the GraphQL type RequestedOrderEditLineItem.
+// The GraphQL type's documentation follows.
+//
+// A line item included in a buyer-initiated requested order edit.
+type BulkOperationNodeRequestedOrderEditLineItem struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeRequestedOrderEditLineItem.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeRequestedOrderEditLineItem) GetTypename() *string { return v.Typename }
+
 // BulkOperationNodeReturn includes the requested fields of the GraphQL type Return.
 // The GraphQL type's documentation follows.
 //
@@ -5974,6 +6185,17 @@ type BulkOperationNodeReturnLineItem struct {
 
 // GetTypename returns BulkOperationNodeReturnLineItem.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodeReturnLineItem) GetTypename() *string { return v.Typename }
+
+// BulkOperationNodeReturnPolicyProfile includes the requested fields of the GraphQL type ReturnPolicyProfile.
+// The GraphQL type's documentation follows.
+//
+// A return policy profile.
+type BulkOperationNodeReturnPolicyProfile struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeReturnPolicyProfile.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeReturnPolicyProfile) GetTypename() *string { return v.Typename }
 
 // BulkOperationNodeReturnReasonDefinition includes the requested fields of the GraphQL type ReturnReasonDefinition.
 // The GraphQL type's documentation follows.
@@ -6065,6 +6287,28 @@ type BulkOperationNodeReverseFulfillmentOrderLineItem struct {
 
 // GetTypename returns BulkOperationNodeReverseFulfillmentOrderLineItem.Typename, and is useful for accessing the field via an interface.
 func (v *BulkOperationNodeReverseFulfillmentOrderLineItem) GetTypename() *string { return v.Typename }
+
+// BulkOperationNodeRollout includes the requested fields of the GraphQL type Rollout.
+// The GraphQL type's documentation follows.
+//
+// A rollout on a shop. Merchants use rollouts to run sales events, permanent launches, and A/B tests by serving treatments to a configured share of buyers.
+type BulkOperationNodeRollout struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeRollout.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeRollout) GetTypename() *string { return v.Typename }
+
+// BulkOperationNodeRolloutTreatment includes the requested fields of the GraphQL type RolloutTreatment.
+// The GraphQL type's documentation follows.
+//
+// A treatment in a rollout. Each treatment receives a share of the rollout's traffic and makes a set of changes to resources for the buyers it serves.
+type BulkOperationNodeRolloutTreatment struct {
+	Typename *string `json:"__typename"`
+}
+
+// GetTypename returns BulkOperationNodeRolloutTreatment.Typename, and is useful for accessing the field via an interface.
+func (v *BulkOperationNodeRolloutTreatment) GetTypename() *string { return v.Typename }
 
 // BulkOperationNodeSaleAdditionalFee includes the requested fields of the GraphQL type SaleAdditionalFee.
 // The GraphQL type's documentation follows.
@@ -7886,7 +8130,7 @@ const (
 	WebhookSubscriptionTopicCustomersDelete WebhookSubscriptionTopic = "CUSTOMERS_DELETE"
 	// The webhook topic for `customers/disable` events. Occurs whenever a customer account is disabled. Requires the `read_customers` scope.
 	WebhookSubscriptionTopicCustomersDisable WebhookSubscriptionTopic = "CUSTOMERS_DISABLE"
-	// The webhook topic for `customers/enable` events. Occurs whenever a customer account is enabled. Requires the `read_customers` scope.
+	// The webhook topic for `customers/enable` events. Occurs whenever a customer account is enabled, including first sign-ins. Requires the `read_customers` scope.
 	WebhookSubscriptionTopicCustomersEnable WebhookSubscriptionTopic = "CUSTOMERS_ENABLE"
 	// The webhook topic for `customers/update` events. Occurs whenever a customer is updated. Requires the `read_customers` scope.
 	WebhookSubscriptionTopicCustomersUpdate WebhookSubscriptionTopic = "CUSTOMERS_UPDATE"
@@ -7920,10 +8164,6 @@ const (
 	WebhookSubscriptionTopicFulfillmentsCreate WebhookSubscriptionTopic = "FULFILLMENTS_CREATE"
 	// The webhook topic for `fulfillments/update` events. Occurs whenever a fulfillment is updated. Requires at least one of the following scopes: read_fulfillments, read_marketplace_orders.
 	WebhookSubscriptionTopicFulfillmentsUpdate WebhookSubscriptionTopic = "FULFILLMENTS_UPDATE"
-	// The webhook topic for `attributed_sessions/first` events. Occurs whenever an order with a "first" attributed session is attributed. Requires the `read_marketing_events` scope.
-	WebhookSubscriptionTopicAttributedSessionsFirst WebhookSubscriptionTopic = "ATTRIBUTED_SESSIONS_FIRST"
-	// The webhook topic for `attributed_sessions/last` events. Occurs whenever an order with a "last" attributed session is attributed. Requires the `read_marketing_events` scope.
-	WebhookSubscriptionTopicAttributedSessionsLast WebhookSubscriptionTopic = "ATTRIBUTED_SESSIONS_LAST"
 	// The webhook topic for `order_transactions/create` events. Occurs when a order transaction is created or when it's status is updated. Only occurs for transactions with a status of success, failure or error. Requires at least one of the following scopes: read_orders, read_marketplace_orders, read_buyer_membership_orders.
 	WebhookSubscriptionTopicOrderTransactionsCreate WebhookSubscriptionTopic = "ORDER_TRANSACTIONS_CREATE"
 	// The webhook topic for `orders/cancelled` events. Occurs whenever an order is cancelled. Requires at least one of the following scopes: read_orders, read_marketplace_orders, read_buyer_membership_orders.
@@ -8049,7 +8289,7 @@ const (
 	WebhookSubscriptionTopicTaxPartnersUpdate WebhookSubscriptionTopic = "TAX_PARTNERS_UPDATE"
 	// The webhook topic for `tax_services/create` events. Occurs whenever a tax service is created. Requires the `read_taxes` scope.
 	WebhookSubscriptionTopicTaxServicesCreate WebhookSubscriptionTopic = "TAX_SERVICES_CREATE"
-	// The webhook topic for `tax_services/update` events. Occurs whenver a tax service is updated. Requires the `read_taxes` scope.
+	// The webhook topic for `tax_services/update` events. Occurs whenever a tax service is updated. Requires the `read_taxes` scope.
 	WebhookSubscriptionTopicTaxServicesUpdate WebhookSubscriptionTopic = "TAX_SERVICES_UPDATE"
 	// The webhook topic for `themes/create` events. Occurs whenever a theme is created. Does not occur when theme files are created. Requires the `read_themes` scope.
 	WebhookSubscriptionTopicThemesCreate WebhookSubscriptionTopic = "THEMES_CREATE"
@@ -8127,7 +8367,7 @@ const (
 	WebhookSubscriptionTopicSubscriptionBillingAttemptsSuccess WebhookSubscriptionTopic = "SUBSCRIPTION_BILLING_ATTEMPTS_SUCCESS"
 	// The webhook topic for `subscription_billing_attempts/failure` events. Occurs whenever a subscription billing attempt fails. Requires the `read_own_subscription_contracts` scope.
 	WebhookSubscriptionTopicSubscriptionBillingAttemptsFailure WebhookSubscriptionTopic = "SUBSCRIPTION_BILLING_ATTEMPTS_FAILURE"
-	// The webhook topic for `subscription_billing_attempts/challenged` events. Occurs when the financial instutition challenges the subscripttion billing attempt charge as per 3D Secure. Requires the `read_own_subscription_contracts` scope.
+	// The webhook topic for `subscription_billing_attempts/challenged` events. Occurs when the financial institution challenges the subscription billing attempt charge as per 3D Secure. Requires the `read_own_subscription_contracts` scope.
 	WebhookSubscriptionTopicSubscriptionBillingAttemptsChallenged WebhookSubscriptionTopic = "SUBSCRIPTION_BILLING_ATTEMPTS_CHALLENGED"
 	// The webhook topic for `returns/cancel` events. Occurs whenever a return is canceled. Requires at least one of the following scopes: read_orders, read_marketplace_orders, read_returns, read_marketplace_returns, read_buyer_membership_orders.
 	WebhookSubscriptionTopicReturnsCancel WebhookSubscriptionTopic = "RETURNS_CANCEL"
@@ -8282,6 +8522,10 @@ const (
 	WebhookSubscriptionTopicSubscriptionContractsFail WebhookSubscriptionTopic = "SUBSCRIPTION_CONTRACTS_FAIL"
 	// The webhook topic for `subscription_contracts/expire` events. Occurs when a subscription contract expires. Requires the `read_own_subscription_contracts` scope.
 	WebhookSubscriptionTopicSubscriptionContractsExpire WebhookSubscriptionTopic = "SUBSCRIPTION_CONTRACTS_EXPIRE"
+	// The webhook topic for `subscription_contract_calculations/succeed` events. Occurs when a subscription contract calculation succeeds. Requires the `read_own_subscription_contracts` scope.
+	WebhookSubscriptionTopicSubscriptionContractCalculationsSucceed WebhookSubscriptionTopic = "SUBSCRIPTION_CONTRACT_CALCULATIONS_SUCCEED"
+	// The webhook topic for `subscription_contract_calculations/fail` events. Occurs when a subscription contract calculation fails. Requires the `read_own_subscription_contracts` scope.
+	WebhookSubscriptionTopicSubscriptionContractCalculationsFail WebhookSubscriptionTopic = "SUBSCRIPTION_CONTRACT_CALCULATIONS_FAIL"
 	// The webhook topic for `subscription_billing_cycles/skip` events. Occurs whenever a subscription contract billing cycle is skipped. Requires the `read_own_subscription_contracts` scope.
 	WebhookSubscriptionTopicSubscriptionBillingCyclesSkip WebhookSubscriptionTopic = "SUBSCRIPTION_BILLING_CYCLES_SKIP"
 	// The webhook topic for `subscription_billing_cycles/unskip` events. Occurs whenever a subscription contract billing cycle is unskipped. Requires the `read_own_subscription_contracts` scope.
@@ -8300,6 +8544,18 @@ const (
 	WebhookSubscriptionTopicFinanceAppStaffMemberDelete WebhookSubscriptionTopic = "FINANCE_APP_STAFF_MEMBER_DELETE"
 	// The webhook topic for `finance_app_staff_member/update` events. Triggers when a staff's information has been updated. Requires the `read_financial_kyc_information` scope.
 	WebhookSubscriptionTopicFinanceAppStaffMemberUpdate WebhookSubscriptionTopic = "FINANCE_APP_STAFF_MEMBER_UPDATE"
+	// The webhook topic for `rollouts/create` events. Occurs when a rollout is created, including its initial treatments and attached changes. Requires the `read_rollouts` scope.
+	WebhookSubscriptionTopicRolloutsCreate WebhookSubscriptionTopic = "ROLLOUTS_CREATE"
+	// The webhook topic for `rollouts/delete` events. Occurs when a rollout is deleted. Archiving a rollout instead produces a rollouts/update notification. Requires the `read_rollouts` scope.
+	WebhookSubscriptionTopicRolloutsDelete WebhookSubscriptionTopic = "ROLLOUTS_DELETE"
+	// The webhook topic for `rollouts/resource_change_added` events. Occurs when a change is added to a rollout treatment. This does not indicate resource creation or activation. Requires the `read_rollouts` scope.
+	WebhookSubscriptionTopicRolloutsResourceChangeAdded WebhookSubscriptionTopic = "ROLLOUTS_RESOURCE_CHANGE_ADDED"
+	// The webhook topic for `rollouts/resource_change_removed` events. Occurs when a change is removed from a rollout treatment. Other changes can still reference the same resource. Requires the `read_rollouts` scope.
+	WebhookSubscriptionTopicRolloutsResourceChangeRemoved WebhookSubscriptionTopic = "ROLLOUTS_RESOURCE_CHANGE_REMOVED"
+	// The webhook topic for `rollouts/resource_change_updated` events. Occurs when a change in a rollout treatment targets a different resource. The change ID stays the same. Requires the `read_rollouts` scope.
+	WebhookSubscriptionTopicRolloutsResourceChangeUpdated WebhookSubscriptionTopic = "ROLLOUTS_RESOURCE_CHANGE_UPDATED"
+	// The webhook topic for `rollouts/update` events. Occurs when a rollout changes lifecycle status or its configuration, treatments, or attached changes are updated. Also occurs when a change to another rollout alters this rollout's effective traffic allocation. That notification can arrive shortly after the other change, and this rollout's updated_at stays the same. Deliveries can be duplicated or arrive out of order, so query the rollout when you need its current state. Requires the `read_rollouts` scope.
+	WebhookSubscriptionTopicRolloutsUpdate WebhookSubscriptionTopic = "ROLLOUTS_UPDATE"
 	// The webhook topic for `discounts/create` events. Occurs whenever a discount is created. Requires the `read_discounts` scope.
 	WebhookSubscriptionTopicDiscountsCreate WebhookSubscriptionTopic = "DISCOUNTS_CREATE"
 	// The webhook topic for `discounts/update` events. Occurs whenever a discount is updated. Requires the `read_discounts` scope.
@@ -8322,6 +8578,12 @@ const (
 	WebhookSubscriptionTopicMarketsBackupRegionUpdate WebhookSubscriptionTopic = "MARKETS_BACKUP_REGION_UPDATE"
 	// The webhook topic for `checkout_and_accounts_configurations/update` events. The event occurs whenever a published checkout and account configuration is updated.
 	WebhookSubscriptionTopicCheckoutAndAccountsConfigurationsUpdate WebhookSubscriptionTopic = "CHECKOUT_AND_ACCOUNTS_CONFIGURATIONS_UPDATE"
+	// The webhook topic for `requested_order_edit/created` events. Occurs when a customer requests an edit on an order. Requires at least one of the following scopes: read_orders, read_marketplace_orders, read_buyer_membership_orders.
+	WebhookSubscriptionTopicRequestedOrderEditCreated WebhookSubscriptionTopic = "REQUESTED_ORDER_EDIT_CREATED"
+	// The webhook topic for `requested_order_edit/resolved` events. Occurs when a requested order edit on an order is resolved. Requires at least one of the following scopes: read_orders, read_marketplace_orders, read_buyer_membership_orders.
+	WebhookSubscriptionTopicRequestedOrderEditResolved WebhookSubscriptionTopic = "REQUESTED_ORDER_EDIT_RESOLVED"
+	// The webhook topic for `requested_order_edit/declined` events. Occurs when a requested order edit on an order is declined. Requires at least one of the following scopes: read_orders, read_marketplace_orders, read_buyer_membership_orders.
+	WebhookSubscriptionTopicRequestedOrderEditDeclined WebhookSubscriptionTopic = "REQUESTED_ORDER_EDIT_DECLINED"
 )
 
 var AllWebhookSubscriptionTopic = []WebhookSubscriptionTopic{
@@ -8369,8 +8631,6 @@ var AllWebhookSubscriptionTopic = []WebhookSubscriptionTopic{
 	WebhookSubscriptionTopicFulfillmentEventsDelete,
 	WebhookSubscriptionTopicFulfillmentsCreate,
 	WebhookSubscriptionTopicFulfillmentsUpdate,
-	WebhookSubscriptionTopicAttributedSessionsFirst,
-	WebhookSubscriptionTopicAttributedSessionsLast,
 	WebhookSubscriptionTopicOrderTransactionsCreate,
 	WebhookSubscriptionTopicOrdersCancelled,
 	WebhookSubscriptionTopicOrdersCreate,
@@ -8530,6 +8790,8 @@ var AllWebhookSubscriptionTopic = []WebhookSubscriptionTopic{
 	WebhookSubscriptionTopicSubscriptionContractsCancel,
 	WebhookSubscriptionTopicSubscriptionContractsFail,
 	WebhookSubscriptionTopicSubscriptionContractsExpire,
+	WebhookSubscriptionTopicSubscriptionContractCalculationsSucceed,
+	WebhookSubscriptionTopicSubscriptionContractCalculationsFail,
 	WebhookSubscriptionTopicSubscriptionBillingCyclesSkip,
 	WebhookSubscriptionTopicSubscriptionBillingCyclesUnskip,
 	WebhookSubscriptionTopicMetaobjectsCreate,
@@ -8539,6 +8801,12 @@ var AllWebhookSubscriptionTopic = []WebhookSubscriptionTopic{
 	WebhookSubscriptionTopicFinanceAppStaffMemberRevoke,
 	WebhookSubscriptionTopicFinanceAppStaffMemberDelete,
 	WebhookSubscriptionTopicFinanceAppStaffMemberUpdate,
+	WebhookSubscriptionTopicRolloutsCreate,
+	WebhookSubscriptionTopicRolloutsDelete,
+	WebhookSubscriptionTopicRolloutsResourceChangeAdded,
+	WebhookSubscriptionTopicRolloutsResourceChangeRemoved,
+	WebhookSubscriptionTopicRolloutsResourceChangeUpdated,
+	WebhookSubscriptionTopicRolloutsUpdate,
 	WebhookSubscriptionTopicDiscountsCreate,
 	WebhookSubscriptionTopicDiscountsUpdate,
 	WebhookSubscriptionTopicDiscountsDelete,
@@ -8550,6 +8818,9 @@ var AllWebhookSubscriptionTopic = []WebhookSubscriptionTopic{
 	WebhookSubscriptionTopicDeliveryPromiseSettingsUpdate,
 	WebhookSubscriptionTopicMarketsBackupRegionUpdate,
 	WebhookSubscriptionTopicCheckoutAndAccountsConfigurationsUpdate,
+	WebhookSubscriptionTopicRequestedOrderEditCreated,
+	WebhookSubscriptionTopicRequestedOrderEditResolved,
+	WebhookSubscriptionTopicRequestedOrderEditDeclined,
 }
 
 // WebhookSubscriptionUpdateResponse is returned by WebhookSubscriptionUpdate on success.

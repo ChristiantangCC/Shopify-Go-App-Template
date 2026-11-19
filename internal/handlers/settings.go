@@ -6,15 +6,22 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
+
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/jobs"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/sessiontoken"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
 )
 
 // Settings reads and writes the shop's settings: the canonical "store
-// something per shop" loop (form, API route, sqlc upsert) the Settings
-// page demonstrates.
+// something per shop" loop (form, API route, GORM upsert, Redis-cached
+// read) the Settings page demonstrates.
 type Settings struct {
-	Store  *store.Store
+	Store *store.Store
+	// River queues a webhook re-sync after a save, because dynamic
+	// subscriptions can depend on settings (see the registry's When).
+	River  *river.Client[pgx.Tx]
 	Logger *slog.Logger
 }
 
@@ -58,6 +65,10 @@ func (h Settings) Put(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Error("[Settings] Save failed", "shop", session.Shop, "error", err)
 		writeError(w, http.StatusInternalServerError, "try again")
 		return
+	}
+	if _, err := h.River.Insert(r.Context(), jobs.SyncWebhooksArgs{Shop: session.Shop}, nil); err != nil {
+		// The save stands; the next app open re-syncs anyway.
+		h.Logger.Warn("[Settings] Could not queue webhook sync", "shop", session.Shop, "error", err)
 	}
 	writeJSON(w, http.StatusOK, saved)
 }

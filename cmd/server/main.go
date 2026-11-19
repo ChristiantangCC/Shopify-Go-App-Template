@@ -1,7 +1,7 @@
 // The server binary runs everything: HTTP (embedded admin UI, its API, the
 // webhook intake, App Proxy and server-to-server routes) plus the River
-// workers that process webhooks and scheduled jobs. One process, one
-// Postgres, nothing else.
+// workers that process webhooks and scheduled jobs. One process, backed by
+// Postgres (data and jobs) and Redis (cache only).
 package main
 
 import (
@@ -20,6 +20,7 @@ import (
 
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/apikey"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/appproxy"
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/cache"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/config"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/crypto"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/db"
@@ -52,27 +53,34 @@ func run() error {
 	}
 	logger := logging.New(logging.Options{Level: cfg.LogLevel, Format: cfg.LogFormat})
 
-	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	database, err := db.Connect(ctx, cfg.DatabaseURL, logger)
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
-	if err := db.Migrate(ctx, pool); err != nil {
+	defer database.Close()
+	if err := db.Migrate(ctx, database, store.Models()...); err != nil {
 		return err
 	}
 	logger.Info("[Server] Database ready")
+
+	redisCache, err := cache.Connect(ctx, cfg.RedisURL, logger)
+	if err != nil {
+		return err
+	}
+	defer redisCache.Close()
+	logger.Info("[Server] Redis ready")
 
 	cipher, err := crypto.New(cfg.EncryptionKey)
 	if err != nil {
 		return err
 	}
-	shops := store.New(pool, cipher)
+	shops := store.New(database.Gorm, cipher, redisCache)
 	tokenService := tokens.New(shops, exchange.New(cfg.ClientID, cfg.ClientSecret), logger)
 	adminClient := admin.New(cfg.APIVersion, tokenService)
-	subscriber := webhooks.NewSubscriber(adminClient, cfg.Host, logger)
+	subscriber := webhooks.NewSubscriber(webhooks.Deps{Store: shops, Admin: adminClient, Logger: logger}, cfg.Host)
 
 	riverClient, err := jobs.NewClient(jobs.Options{
-		Pool:       pool,
+		Pool:       database.Pool,
 		Store:      shops,
 		Admin:      adminClient,
 		Tokens:     tokenService,
@@ -87,6 +95,11 @@ func run() error {
 	}
 	logger.Info("[Server] Workers running")
 
+	inserter, err := jobs.NewInserter(database.SQL, logger)
+	if err != nil {
+		return err
+	}
+
 	dist, err := web.Dist()
 	if err != nil {
 		return err
@@ -99,8 +112,9 @@ func run() error {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID, logging.RequestLogger(logger), middleware.Recoverer, middleware.Timeout(30*time.Second))
 
-	router.Method(http.MethodGet, "/health", handlers.Health{Pool: pool})
-	router.Method(http.MethodPost, "/webhooks", handlers.Webhook{Secret: cfg.ClientSecret, Pool: pool, River: riverClient, Logger: logger})
+	router.Method(http.MethodGet, "/health", handlers.Health{Pool: database.Pool, Cache: redisCache})
+	router.Method(http.MethodPost, "/webhooks", handlers.Webhook{Secret: cfg.ClientSecret, Store: shops, Inserter: inserter, Logger: logger})
+	router.Method(http.MethodPost, "/events", handlers.Events{Secret: cfg.ClientSecret, Store: shops, Inserter: inserter, Logger: logger})
 
 	// Embedded admin API: every route behind session-token verification.
 	router.Route("/api/admin", func(r chi.Router) {
@@ -110,7 +124,7 @@ func run() error {
 		webhookSubs := handlers.WebhookSubscriptions{Subscriber: subscriber, Logger: logger}
 		r.Get("/webhooks/subscriptions", webhookSubs.List)
 		r.Post("/webhooks/subscriptions", webhookSubs.Toggle)
-		settings := handlers.Settings{Store: shops, Logger: logger}
+		settings := handlers.Settings{Store: shops, River: riverClient, Logger: logger}
 		r.Get("/settings", settings.Get)
 		r.Put("/settings", settings.Put)
 		r.Method(http.MethodPost, "/bulk/products", handlers.StartProductsBulk{Admin: adminClient, Logger: logger})

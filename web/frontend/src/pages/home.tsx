@@ -133,16 +133,17 @@ export const HomePage = () => {
     <s-page heading="Shopify Go App Template">
       <s-section heading="You are looking at a working app">
         <s-paragraph>
-          One Go binary and one Postgres. This page runs embedded in the admin behind session-token
+          One Go binary, one Postgres and a Redis cache. This page runs embedded in the admin behind session-token
           auth, the install already exchanged tokens, and the background workers are processing
           jobs. Everything below is wired and tested; replace the examples with your app.
         </s-paragraph>
         <s-stack direction="inline" gap="small-200">
           <s-badge>Go + chi</s-badge>
-          <s-badge>Postgres + sqlc</s-badge>
+          <s-badge>Postgres + GORM</s-badge>
+          <s-badge>Redis cache</s-badge>
           <s-badge>River jobs</s-badge>
           <s-badge>Preact + TanStack Query</s-badge>
-          <s-badge>Polaris web components</s-badge>
+          <s-badge>Polaris web components v2</s-badge>
         </s-stack>
       </s-section>
 
