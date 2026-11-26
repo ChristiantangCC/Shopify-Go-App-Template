@@ -54,7 +54,7 @@ func TestInstallLifecycle(t *testing.T) {
 		t.Fatalf("raw row: %+v err %v", row, err)
 	}
 	for _, sealed := range []string{*row.AccessTokenEnc, *row.RefreshTokenEnc} {
-		if !strings.HasPrefix(sealed, "v1:") || strings.Contains(sealed, "plain") {
+		if !strings.HasPrefix(sealed, "v2:") || strings.Contains(sealed, "plain") {
 			t.Fatalf("token stored unencrypted: %q", sealed)
 		}
 	}
@@ -216,11 +216,11 @@ func TestSettingsCacheInvalidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
+	t.Cleanup(func() { _ = c.Close() })
 	cipher, _ := crypto.New(testKey)
 	shops := store.New(database.Gorm, cipher, c)
 	shop := fmt.Sprintf("cache-%d.myshopify.com", time.Now().UnixNano())
-	t.Cleanup(func() { shops.Delete(context.Background(), shop) })
+	t.Cleanup(func() { _ = shops.Delete(context.Background(), shop) })
 
 	if _, _, err := shops.SaveInstall(ctx, shop, testToken()); err != nil {
 		t.Fatalf("install: %v", err)
@@ -244,5 +244,117 @@ func TestSettingsCacheInvalidation(t *testing.T) {
 	}
 	if got, _ := shops.GetSettings(ctx, shop); got.NotificationEmail != "ops@example.com" || got.SyncEnabled {
 		t.Fatalf("after save: %+v", got)
+	}
+}
+
+// TestInstallCacheInvalidation needs Redis; it skips without
+// TEST_REDIS_URL. Installs are read through the cache, every write through
+// the store drops the entry after commit, and the locked refresh path
+// always sees the database.
+func TestInstallCacheInvalidation(t *testing.T) {
+	redisURL := os.Getenv("TEST_REDIS_URL")
+	if redisURL == "" {
+		t.Skip("TEST_REDIS_URL not set, skipping Redis integration test")
+	}
+	database := testdb.Open(t)
+	ctx := context.Background()
+	c, err := cache.Connect(ctx, redisURL, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	cipher, _ := crypto.New(testKey)
+	shops := store.New(database.Gorm, cipher, c)
+	shop := fmt.Sprintf("install-cache-%d.myshopify.com", time.Now().UnixNano())
+	t.Cleanup(func() { _ = shops.Delete(context.Background(), shop) })
+
+	if _, _, err := shops.SaveInstall(ctx, shop, testToken()); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := shops.GetInstall(ctx, shop); err != nil || got.AccessToken != "shpat_plain_access" {
+		t.Fatalf("first read: %+v err %v", got, err)
+	}
+
+	// Redis holds the sealed row, never a plain token.
+	raw, err := c.Client().Get(ctx, "shop-install:"+shop).Result()
+	if err != nil || strings.Contains(raw, "plain") || !strings.Contains(raw, "v2:") {
+		t.Fatalf("cached entry must hold sealed tokens: %q err %v", raw, err)
+	}
+
+	// Write behind the store's back: a cached read must not see it...
+	if err := database.Gorm.Model(&store.Shop{}).Where(&store.Shop{ShopDomain: shop}).Update("Scopes", "direct").Error; err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := shops.GetInstall(ctx, shop); got.Scopes == "direct" {
+		t.Fatal("read should be served from cache")
+	}
+	// ...but the locked path reads the database.
+	err = shops.WithShopLock(ctx, shop, func(ctx context.Context, locked store.LockedShop) error {
+		got, err := locked.Get(ctx)
+		if err == nil && got.Scopes != "direct" {
+			t.Errorf("locked read must bypass the cache, got scopes %q", got.Scopes)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A refresh under the lock invalidates the entry once it commits.
+	refreshed := testToken()
+	refreshed.AccessToken = "shpat_refreshed"
+	err = shops.WithShopLock(ctx, shop, func(ctx context.Context, locked store.LockedShop) error {
+		return locked.SaveTokens(ctx, refreshed)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := shops.GetInstall(ctx, shop); got.AccessToken != "shpat_refreshed" {
+		t.Fatalf("after locked refresh: %+v", got)
+	}
+
+	// Uninstall invalidates too, so the App Proxy stops accepting the shop.
+	if err := shops.MarkUninstalled(ctx, shop); err != nil {
+		t.Fatal(err)
+	}
+	if err := shops.CheckInstalled(ctx, shop); err == nil {
+		t.Fatal("uninstalled shop must fail CheckInstalled")
+	}
+}
+
+func TestResealTokensMovesShopsToTheCurrentKey(t *testing.T) {
+	database := testdb.Open(t)
+	ctx := context.Background()
+	const oldKey = "0000000000000000000000000000000000000000000000000000000000000001"
+	const shop = "rotate-shop.myshopify.com"
+
+	before, _ := crypto.New(oldKey)
+	if _, _, err := store.New(database.Gorm, before, nil).SaveInstall(ctx, shop, testToken()); err != nil {
+		t.Fatal(err)
+	}
+
+	after, _ := crypto.New(testKey, oldKey)
+	shops := store.New(database.Gorm, after, nil)
+	stale, err := shops.ListShopsWithStaleTokens(ctx, 0, 10)
+	if err != nil || len(stale) != 1 || stale[0].ShopDomain != shop {
+		t.Fatalf("stale before reseal: %+v err %v", stale, err)
+	}
+
+	changed, err := shops.ResealTokens(ctx, shop)
+	if err != nil || !changed {
+		t.Fatalf("reseal: changed %v err %v", changed, err)
+	}
+	if again, _ := shops.ResealTokens(ctx, shop); again {
+		t.Fatal("a second reseal must find nothing to do")
+	}
+	if stale, _ := shops.ListShopsWithStaleTokens(ctx, 0, 10); len(stale) != 0 {
+		t.Fatalf("stale after reseal: %+v", stale)
+	}
+
+	// The tokens survive, and no longer need the old key.
+	current, _ := crypto.New(testKey)
+	install, err := store.New(database.Gorm, current, nil).GetInstall(ctx, shop)
+	if err != nil || install.AccessToken != "shpat_plain_access" || install.RefreshToken != "refresh_plain" {
+		t.Fatalf("after reseal, without the old key: %+v err %v", install, err)
 	}
 }

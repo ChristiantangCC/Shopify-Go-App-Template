@@ -30,16 +30,25 @@ const ProductsQuery = `{
   }
 }`
 
+// UserError is a userError Shopify returned for the bulk mutation, like "A
+// bulk query operation for this app and shop is already in progress". Its
+// message is meant for people and safe to show the merchant.
+type UserError struct {
+	Message string
+}
+
+func (e *UserError) Error() string { return "bulk: " + e.Message }
+
 // Start begins a bulk query for the shop and returns the operation id.
 // Shopify allows one running bulk query per app and shop; starting a
-// second one fails with a userError until the first finishes.
+// second one fails with a *UserError until the first finishes.
 func Start(ctx context.Context, adminClient *admin.Client, shop, query string) (string, error) {
 	res, err := graphql.BulkOperationRunQuery(ctx, adminClient.ForShop(shop), query, false)
 	if err != nil {
 		return "", fmt.Errorf("bulk: %w", err)
 	}
 	if errs := res.BulkOperationRunQuery.UserErrors; len(errs) > 0 {
-		return "", fmt.Errorf("bulk: %s", errs[0].Message)
+		return "", &UserError{Message: errs[0].Message}
 	}
 	if res.BulkOperationRunQuery.BulkOperation == nil {
 		return "", errors.New("bulk: no operation returned")

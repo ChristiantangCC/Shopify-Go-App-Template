@@ -17,8 +17,11 @@ import (
 // queues a webhook-subscription sync so dynamic topics follow the registry
 // (and the callback URL follows a changed dev tunnel).
 type Session struct {
-	Tokens         *tokens.Service
-	River          *river.Client[pgx.Tx]
+	Tokens *tokens.Service
+	River  *river.Client[pgx.Tx]
+	// Host is the app's public base URL, the webhook callback the sync
+	// points subscriptions at.
+	Host           string
 	BillingEnabled bool
 	Logger         *slog.Logger
 }
@@ -41,7 +44,8 @@ func (h Session) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Info("[Session] App installed", "shop", session.Shop)
 	}
 
-	if _, err := h.River.Insert(r.Context(), jobs.SyncWebhooksArgs{Shop: session.Shop}, nil); err != nil {
+	// OncePerWindow: repeated app opens share one sync per shop and host.
+	if _, err := h.River.Insert(r.Context(), jobs.SyncWebhooksArgs{Shop: session.Shop, Host: h.Host}, jobs.OncePerWindow()); err != nil {
 		// The app still works without the sync; the next open retries it.
 		h.Logger.Warn("[Session] Could not queue webhook sync", "shop", session.Shop, "error", err)
 	}

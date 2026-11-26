@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -19,7 +20,7 @@ func TestSealRoundTrips(t *testing.T) {
 	if strings.Contains(sealed, "shpat") {
 		t.Fatalf("ciphertext leaks plaintext: %q", sealed)
 	}
-	if !strings.HasPrefix(sealed, "v1:") {
+	if !strings.HasPrefix(sealed, "v2:"+c.CurrentKeyID()+":") {
 		t.Fatalf("missing version prefix: %q", sealed)
 	}
 	opened, err := c.Open(sealed)
@@ -52,7 +53,8 @@ func TestOpenRejects(t *testing.T) {
 	}{
 		"wrong key":      {other, sealed},
 		"tampered":       {c, sealed[:len(sealed)-2] + "AA"},
-		"unknown format": {c, "v2:" + sealed[3:]},
+		"unknown format": {c, "v9:" + sealed[3:]},
+		"v2 without id":  {c, "v2:AAAA"},
 		"not base64":     {c, "v1:%%%"},
 		"too short":      {c, "v1:AAAA"},
 		"empty":          {c, ""},
@@ -71,5 +73,67 @@ func TestNewRejectsBadKeys(t *testing.T) {
 		if _, err := New(key); err == nil {
 			t.Fatalf("New(%q) accepted a bad key", key)
 		}
+	}
+}
+
+const oldKey = "0000000000000000000000000000000000000000000000000000000000000001"
+
+// sealV1 writes the legacy format (no key id), as stored before rotation
+// support existed.
+func sealV1(t *testing.T, hexKey, plaintext string) string {
+	t.Helper()
+	_, aead, err := parseKey(hexKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce := make([]byte, aead.NonceSize())
+	sealed := aead.Seal(nonce, nonce, []byte(plaintext), nil)
+	return v1Prefix + base64.StdEncoding.EncodeToString(sealed)
+}
+
+func TestRotation(t *testing.T) {
+	before, _ := New(oldKey)
+	sealedBefore, _ := before.Seal("token")
+
+	after, err := New(testKey, oldKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := after.Open(sealedBefore); err != nil || got != "token" {
+		t.Fatalf("value sealed with the old key: %q err %v", got, err)
+	}
+	if after.IsCurrent(sealedBefore) {
+		t.Fatal("a value sealed with the old key is not current")
+	}
+	resealed, _ := after.Seal("token")
+	if !after.IsCurrent(resealed) {
+		t.Fatal("Seal must use the current key")
+	}
+
+	// Once the old key is dropped, its values fail loudly, naming the key.
+	dropped, _ := New(testKey)
+	if _, err := dropped.Open(sealedBefore); err == nil || !strings.Contains(err.Error(), before.CurrentKeyID()) {
+		t.Fatalf("missing old key must be reported by id, got %v", err)
+	}
+}
+
+func TestOpensLegacyV1WithAnyKey(t *testing.T) {
+	c, _ := New(testKey, oldKey)
+	for _, key := range []string{testKey, oldKey} {
+		if got, err := c.Open(sealV1(t, key, "legacy")); err != nil || got != "legacy" {
+			t.Fatalf("v1 sealed with %s...: %q err %v", key[:4], got, err)
+		}
+	}
+	if c.IsCurrent(sealV1(t, testKey, "legacy")) {
+		t.Fatal("v1 values are never current: they get re-encrypted into v2")
+	}
+}
+
+func TestNewRejectsADuplicateKey(t *testing.T) {
+	if _, err := New(testKey, testKey); err == nil {
+		t.Fatal("the current key repeated as an old key must be rejected")
+	}
+	if _, err := New(testKey, "nope"); err == nil {
+		t.Fatal("a malformed old key must be rejected")
 	}
 }

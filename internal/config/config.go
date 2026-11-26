@@ -21,7 +21,8 @@ type Config struct {
 
 	// Host is the app's public base URL (https://...), with no trailing
 	// slash. Shopify loads the embedded UI from it and delivers webhooks
-	// to it. In development this is the tunnel URL written by scripts/dev.sh.
+	// to it. In development this is the tunnel URL written by
+	// scripts/app-dev.sh.
 	Host string `env:"HOST,required"`
 
 	// ClientID is the Shopify app's client ID from the Dev Dashboard.
@@ -37,13 +38,20 @@ type Config struct {
 	// DatabaseURL is the Postgres connection string.
 	DatabaseURL string `env:"DATABASE_URL,required"`
 
-	// RedisURL is the Redis connection string (redis:// or rediss://). Redis
-	// only caches; Postgres stays the source of truth.
-	RedisURL string `env:"REDIS_URL,required"`
+	// RedisURL is the Redis connection string (redis:// or rediss://).
+	// Optional: Redis only caches (installs, settings) and shares the App
+	// Proxy rate limit across instances; Postgres stays the source of
+	// truth. Empty means no caching and a per-instance rate limit.
+	RedisURL string `env:"REDIS_URL"`
 
 	// EncryptionKey encrypts access and refresh tokens at rest:
 	// 64 hex characters (32 bytes). Generate with: openssl rand -hex 32
 	EncryptionKey string `env:"ENCRYPTION_KEY,required"`
+
+	// EncryptionKeysOld are earlier ENCRYPTION_KEY values, comma separated,
+	// kept only while the re-encrypt job moves tokens to the current key.
+	// See docs/key-rotation.md.
+	EncryptionKeysOld []string `env:"ENCRYPTION_KEYS_OLD" envSeparator:","`
 
 	// BillingEnabled switches the optional billing module on.
 	BillingEnabled bool `env:"BILLING_ENABLED" envDefault:"false"`
@@ -69,10 +77,23 @@ type Config struct {
 	// RateLimitPerMinute caps App Proxy requests per customer or IP.
 	RateLimitPerMinute int `env:"RATE_LIMIT_PER_MINUTE" envDefault:"30"`
 
+	// ProxyTrustedHops is how many proxies in front of the app append to
+	// X-Forwarded-For: 2 for Shopify's App Proxy plus one reverse proxy of
+	// your own, 1 with none. The rate limiter reads the visitor's IP that
+	// many entries from the right, so a spoofed header can't dodge it.
+	ProxyTrustedHops int `env:"PROXY_TRUSTED_HOPS" envDefault:"2"`
+
 	// FrontendDevURL, when set, makes the server proxy non-API requests to
 	// a running Vite dev server for hot reload. Leave empty in production,
 	// where the embedded build is served instead.
 	FrontendDevURL string `env:"FRONTEND_DEV_URL"`
+
+	// ShutdownDrainDelay is how long the server keeps serving after SIGTERM
+	// with /readyz already failing, so a load balancer can take the
+	// instance out of rotation before connections close. Set it a little
+	// above the readiness probe's period (e.g. 10s on Kubernetes); 0 shuts
+	// down at once.
+	ShutdownDrainDelay time.Duration `env:"SHUTDOWN_DRAIN_DELAY" envDefault:"0s"`
 
 	// LogLevel is debug, info, warn or error.
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
@@ -92,6 +113,19 @@ func Load() (Config, error) {
 	host, err := url.Parse(cfg.Host)
 	if err != nil || host.Scheme != "https" || host.Host == "" {
 		return Config{}, fmt.Errorf("config: HOST must be an https URL, got %q", cfg.Host)
+	}
+
+	// A trailing comma or blank entry in ENCRYPTION_KEYS_OLD is not a key.
+	var oldKeys []string
+	for _, key := range cfg.EncryptionKeysOld {
+		if key = strings.TrimSpace(key); key != "" {
+			oldKeys = append(oldKeys, key)
+		}
+	}
+	cfg.EncryptionKeysOld = oldKeys
+
+	if cfg.ProxyTrustedHops < 1 {
+		return Config{}, fmt.Errorf("config: PROXY_TRUSTED_HOPS must be at least 1, got %d", cfg.ProxyTrustedHops)
 	}
 
 	keys, err := apikey.Parse(cfg.APIKey, cfg.APIKeys)

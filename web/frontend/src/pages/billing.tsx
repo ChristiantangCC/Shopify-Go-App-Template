@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { authFetch } from "../lib/auth-fetch";
-import { PLANS, type Plan } from "../lib/plans";
-import styles from "./billing.module.css";
+import { authFetch } from '../lib/auth-fetch';
+import { PLANS, type Plan } from '../lib/plans';
+import styles from './billing.module.css';
 
 interface Subscription {
   id: string;
@@ -18,7 +18,7 @@ interface BillingStatus {
 }
 
 const fetchBillingStatus = async (): Promise<BillingStatus> => {
-  const response = await authFetch("/api/admin/billing/status");
+  const response = await authFetch('/api/admin/billing/status');
   if (!response.ok) {
     throw new Error(`billing request failed: ${response.status}`);
   }
@@ -40,7 +40,7 @@ const PlanCard = ({ plan, isCurrent, pricingPlansUrl }: PlanCardProps) => (
       <s-heading>{plan.name}</s-heading>
       <s-stack direction="inline" gap="small-500" alignItems="end">
         <s-text type="strong" fontSize="large-100">
-          {plan.priceUsd === null ? "Free" : `$${plan.priceUsd}`}
+          {plan.priceUsd === null ? 'Free' : `$${plan.priceUsd}`}
         </s-text>
         {plan.priceUsd !== null && <s-text color="subdued">/ month</s-text>}
       </s-stack>
@@ -74,9 +74,9 @@ const PlanCard = ({ plan, isCurrent, pricingPlansUrl }: PlanCardProps) => (
         inlineSize="fill"
         variant="secondary"
         disabled={isCurrent || !pricingPlansUrl || undefined}
-        onClick={pricingPlansUrl ? () => window.open(pricingPlansUrl, "_top") : undefined}
+        onClick={pricingPlansUrl ? () => window.open(pricingPlansUrl, '_top') : undefined}
       >
-        {isCurrent ? "Current plan" : "Switch plan"}
+        {isCurrent ? 'Current plan' : 'Switch plan'}
       </s-button>
     </div>
   </div>
@@ -89,20 +89,19 @@ const PlanCard = ({ plan, isCurrent, pricingPlansUrl }: PlanCardProps) => (
  * in-app view, and the catalog is placeholder UI with no enforcement.
  */
 export const BillingPage = () => {
-  const billing = useQuery({ queryKey: ["billing"], queryFn: fetchBillingStatus });
+  const billing = useQuery({ queryKey: ['billing'], queryFn: fetchBillingStatus });
 
   const activeSubscription = billing.data?.subscriptions[0];
-  const currentPlanName = activeSubscription?.name ?? "Free";
+  const currentPlanName = activeSubscription?.name ?? 'Free';
 
   return (
     <s-page heading="Plans & billing">
       <s-stack direction="block" gap="base">
         <s-banner heading="Template UI, nothing is enforced">
-          These cards are placeholders: the server never checks a plan and no card creates a
-          charge. Configure the real plans as managed pricing in the Dev Dashboard (required
-          before app review) and keep web/frontend/src/lib/plans.ts mirroring them; the Switch
-          buttons open Shopify's hosted plan picker, which is what actually changes a merchant's
-          plan.
+          These cards are placeholders: the server never checks a plan and no card creates a charge.
+          Configure the real plans as managed pricing in the Dev Dashboard (required before app
+          review) and keep web/frontend/src/lib/plans.ts mirroring them; the Switch buttons open
+          Shopify's hosted plan picker, which is what actually changes a merchant's plan.
         </s-banner>
 
         {billing.isLoading && <s-spinner accessibilityLabel="Loading plan"></s-spinner>}

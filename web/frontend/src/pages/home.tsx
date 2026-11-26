@@ -48,7 +48,10 @@ const fetchSubscriptions = async (): Promise<SubscriptionsResponse> => {
 const DynamicSubscriptionDemo = () => {
   const demoTopic = 'products/create';
   const queryClient = useQueryClient();
-  const subscriptions = useQuery({ queryKey: ['webhook-subscriptions'], queryFn: fetchSubscriptions });
+  const subscriptions = useQuery({
+    queryKey: ['webhook-subscriptions'],
+    queryFn: fetchSubscriptions,
+  });
 
   const toggle = useMutation({
     mutationFn: async (subscribed: boolean) => {
@@ -63,7 +66,9 @@ const DynamicSubscriptionDemo = () => {
       return subscribed;
     },
     onSuccess: (subscribed) => {
-      shopify.toast.show(subscribed ? `Subscribed to ${demoTopic}` : `Unsubscribed from ${demoTopic}`);
+      shopify.toast.show(
+        subscribed ? `Subscribed to ${demoTopic}` : `Unsubscribed from ${demoTopic}`,
+      );
       queryClient.invalidateQueries({ queryKey: ['webhook-subscriptions'] });
     },
     onError: (error) => {
@@ -76,7 +81,9 @@ const DynamicSubscriptionDemo = () => {
   return (
     <s-stack direction="inline" gap="base" alignItems="center">
       <Path>products/create</Path>
-      {subscriptions.isLoading && <s-spinner accessibilityLabel="Loading subscription state" size="base"></s-spinner>}
+      {subscriptions.isLoading && (
+        <s-spinner accessibilityLabel="Loading subscription state" size="base"></s-spinner>
+      )}
       {subscriptions.data && (
         <s-badge tone={subscribed ? 'success' : 'neutral'}>
           {subscribed ? 'subscribed' : 'not subscribed'}
@@ -104,9 +111,10 @@ const BulkDemo = () => {
   const start = useMutation({
     mutationFn: async () => {
       const response = await authFetch('/api/admin/bulk/products', { method: 'POST' });
-      const body = (await response.json().catch(() => null)) as
-        | { operationId?: string; error?: string }
-        | null;
+      const body = (await response.json().catch(() => null)) as {
+        operationId?: string;
+        error?: string;
+      } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? `bulk start failed: ${response.status}`);
       }
@@ -133,14 +141,15 @@ export const HomePage = () => {
     <s-page heading="Shopify Go App Template">
       <s-section heading="You are looking at a working app">
         <s-paragraph>
-          One Go binary, one Postgres and a Redis cache. This page runs embedded in the admin behind session-token
-          auth, the install already exchanged tokens, and the background workers are processing
-          jobs. Everything below is wired and tested; replace the examples with your app.
+          One Go binary, one Postgres and an optional Redis cache. This page runs embedded in the
+          admin behind session-token auth, the install already exchanged tokens, and the background
+          workers are processing jobs. Everything below is wired and tested; replace the examples
+          with your app.
         </s-paragraph>
         <s-stack direction="inline" gap="small-200">
           <s-badge>Go + chi</s-badge>
           <s-badge>Postgres + GORM</s-badge>
-          <s-badge>Redis cache</s-badge>
+          <s-badge>Optional Redis cache</s-badge>
           <s-badge>River jobs</s-badge>
           <s-badge>Preact + TanStack Query</s-badge>
           <s-badge>Polaris web components v2</s-badge>
@@ -183,8 +192,8 @@ export const HomePage = () => {
             this store, live. Then create a product and watch the server log print{' '}
             <Path>[Webhooks] Product created</Path>. Unsubscribe and the log stays quiet. And
             because the topic is in the registry, reopening the app runs the reconciler and
-            subscribes it again; that is the self-healing behavior that also repoints callbacks
-            when your dev tunnel URL changes.
+            subscribes it again; that is the self-healing behavior that also repoints callbacks when
+            your dev tunnel URL changes.
           </Feature>
           <DynamicSubscriptionDemo />
           <Feature title="Delivery pipeline">
@@ -197,10 +206,10 @@ export const HomePage = () => {
 
       <s-section heading="Background jobs: River on Postgres">
         <s-stack direction="block" gap="base">
-          <Feature title="No Redis">
+          <Feature title="No queue broker">
             Jobs live in the same Postgres as your data, which is what makes the transactional
-            webhook handoff possible. Workers run inside the server binary with retries and
-            backoff; nothing extra to deploy.
+            webhook handoff possible. Workers run inside the server binary with retries and backoff;
+            nothing extra to deploy.
           </Feature>
           <Feature title="Adding a job">
             Define an args type and a worker in <Path>internal/jobs/jobs.go</Path>, register it in{' '}
@@ -213,21 +222,19 @@ export const HomePage = () => {
 
       <s-section heading="Calling the Admin API">
         <s-paragraph>
-          Operations are .graphql documents in{' '}
-          <Path>internal/shopify/graphql/operations/</Path>, compiled to typed Go by genqlient:
-          write the document, run <Path>bun run codegen</Path>, call the generated function through{' '}
-          <Path>adminClient.ForShop(shop)</Path>. Typos and schema drift fail at compile time, and
-          the client still handles THROTTLED and 429 via Shopify's cost feedback, retries 5xx only
-          for queries and <Path>@idempotent(key:)</Path> mutations, and recovers from a 401 with
-          one forced token refresh.
+          Operations are .graphql documents in <Path>internal/shopify/graphql/operations/</Path>,
+          compiled to typed Go by genqlient: write the document, run <Path>bun run codegen</Path>,
+          call the generated function through <Path>adminClient.ForShop(shop)</Path>. Typos and
+          schema drift fail at compile time, and the client still handles THROTTLED and 429 via
+          Shopify's cost feedback, retries 5xx only for queries and <Path>@idempotent(key:)</Path>{' '}
+          mutations, and recovers from a 401 with one forced token refresh.
         </s-paragraph>
         <Feature title="Bulk operations">
-          For "every record in the store" workloads, paging dies at the cost limit; bulk
-          operations are the escape hatch. <Path>internal/shopify/bulk</Path> starts the query,
-          Shopify grinds through it server-side and delivers{' '}
-          <Path>bulk_operations/finish</Path> (a permanent registry subscription, no per-run
-          subscribe dance), and the handler streams the JSONL result. Try it, then watch the
-          server log for the downloaded line count:
+          For "every record in the store" workloads, paging dies at the cost limit; bulk operations
+          are the escape hatch. <Path>internal/shopify/bulk</Path> starts the query, Shopify grinds
+          through it server-side and delivers <Path>bulk_operations/finish</Path> (a permanent
+          registry subscription, no per-run subscribe dance), and the handler streams the JSONL
+          result. Try it, then watch the server log for the downloaded line count:
         </Feature>
         <BulkDemo />
       </s-section>

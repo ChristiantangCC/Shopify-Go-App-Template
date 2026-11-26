@@ -57,7 +57,9 @@ type WebhookDelivery struct {
 // TableName pins the table name.
 func (WebhookDelivery) TableName() string { return "webhook_deliveries" }
 
-// Models lists every model AutoMigrate manages. Add new models here.
+// Models lists every model. Add new models here: the drift test
+// (internal/db, TestMigrationsMatchModels) builds a schema from them and
+// fails when internal/db/migrations doesn't produce the same one.
 func Models() []any {
 	return []any{&Shop{}, &ShopSettings{}, &WebhookDelivery{}}
 }

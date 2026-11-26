@@ -18,7 +18,11 @@
     "frontend:dev": "bun run --cwd web/frontend dev",
     "frontend:build": "bun run --cwd web/frontend build",
     "typecheck": "bun run --cwd web/frontend typecheck",
+    "format": "bun run --cwd web/frontend format",
+    "format:check": "bun run --cwd web/frontend format:check",
     "test": "go test ./...",
-    "db:up": "docker compose up -d --wait postgres redis"
+    "test:frontend": "bun run --cwd web/frontend test",
+    "db:up": "docker compose up -d --wait postgres redis",
+    "db:migration": "go run ./scripts/new-migration"
   }
 }

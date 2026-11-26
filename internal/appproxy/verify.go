@@ -108,12 +108,8 @@ func Verify(opts VerifyOptions) func(http.Handler) http.Handler {
 				reject("not a myshopify domain")
 				return
 			}
-			if opts.CheckShop != nil {
-				if err := opts.CheckShop(r.Context(), shop); err != nil {
-					reject("unknown shop")
-					return
-				}
-			}
+			// The timestamp is checked before CheckShop: a replayed request
+			// is rejected without touching the database.
 			timestamp, err := strconv.ParseInt(query.Get("timestamp"), 10, 64)
 			if err != nil {
 				reject("bad timestamp")
@@ -123,6 +119,12 @@ func Verify(opts VerifyOptions) func(http.Handler) http.Handler {
 				reject("stale timestamp")
 				return
 			}
+			if opts.CheckShop != nil {
+				if err := opts.CheckShop(r.Context(), shop); err != nil {
+					reject("unknown shop")
+					return
+				}
+			}
 
 			caller := Caller{Shop: shop, CustomerID: query.Get("logged_in_customer_id")}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), callerKey{}, caller)))
@@ -130,19 +132,50 @@ func Verify(opts VerifyOptions) func(http.Handler) http.Handler {
 	}
 }
 
-// RateLimitKey keys rate limiting on the logged-in customer, otherwise the
-// visitor's IP. Behind the App Proxy and a reverse proxy, the visitor's IP is
-// the first entry of X-Forwarded-For.
-func RateLimitKey(r *http.Request) (string, error) {
-	if caller, ok := CallerFrom(r.Context()); ok && caller.CustomerID != "" {
-		return "customer:" + caller.CustomerID, nil
+// RateLimitKey returns a key func that rate limits on the logged-in
+// customer, otherwise the visitor's IP.
+//
+// The IP comes from X-Forwarded-For, which the visitor can pre-fill with
+// anything, so the leftmost entry is never trusted. Each proxy in front of
+// the app appends the address it received the request from; trustedHops is
+// how many of those trusted proxies there are, and the visitor's real IP is
+// the entry that many places from the right. Behind Shopify's App Proxy and
+// one reverse proxy of your own (Traefik, nginx, a load balancer) that is 2:
+// Shopify appends the visitor, your proxy appends Shopify. With no reverse
+// proxy of your own it is 1. When the header is shorter than expected, the
+// TCP peer is used.
+func RateLimitKey(trustedHops int) func(r *http.Request) (string, error) {
+	return func(r *http.Request) (string, error) {
+		if caller, ok := CallerFrom(r.Context()); ok && caller.CustomerID != "" {
+			return "customer:" + caller.CustomerID, nil
+		}
+		if ip := forwardedIP(r.Header.Values("X-Forwarded-For"), trustedHops); ip != "" {
+			return "ip:" + ip, nil
+		}
+		// RemoteAddr is "ip:port", and the port differs per connection.
+		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+			return "ip:" + host, nil
+		}
+		return "ip:" + r.RemoteAddr, nil
 	}
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		return "ip:" + strings.TrimSpace(strings.Split(forwarded, ",")[0]), nil
+}
+
+// forwardedIP picks the entry trustedHops places from the right of the
+// combined X-Forwarded-For values, or "" when there is no such entry.
+func forwardedIP(headers []string, trustedHops int) string {
+	if trustedHops < 1 {
+		return ""
 	}
-	// RemoteAddr is "ip:port", and the port differs per connection.
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return "ip:" + host, nil
+	var entries []string
+	for _, header := range headers {
+		for _, entry := range strings.Split(header, ",") {
+			if entry = strings.TrimSpace(entry); entry != "" {
+				entries = append(entries, entry)
+			}
+		}
 	}
-	return "ip:" + r.RemoteAddr, nil
+	if len(entries) < trustedHops {
+		return ""
+	}
+	return entries[len(entries)-trustedHops]
 }

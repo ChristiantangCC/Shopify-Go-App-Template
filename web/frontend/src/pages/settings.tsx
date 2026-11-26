@@ -112,10 +112,9 @@ export const SettingsPage = () => {
       <s-section heading="How this works">
         <s-paragraph color="subdued">
           Edit a field and the admin's save bar appears: App Bridge watches any form with the
-          data-save-bar attribute, Save submits it and Discard resets it. The submit handler PUTs
-          to /api/admin/settings, the server validates and upserts shop_settings (one row per
-          shop, cascading on shop/redact), and the saved values come back as the form's new
-          baseline.
+          data-save-bar attribute, Save submits it and Discard resets it. The submit handler PUTs to
+          /api/admin/settings, the server validates and upserts shop_settings (one row per shop,
+          cascading on shop/redact), and the saved values come back as the form's new baseline.
         </s-paragraph>
       </s-section>
     </s-page>

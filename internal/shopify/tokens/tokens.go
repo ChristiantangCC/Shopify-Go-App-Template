@@ -45,6 +45,10 @@ func (s *Service) EnsureInstall(ctx context.Context, shop, sessionToken string) 
 	switch {
 	case errors.Is(err, store.ErrShopNotFound):
 		// fall through to the exchange
+	case errors.Is(err, store.ErrTokensUnreadable):
+		// The stored pair is lost to a missing key; a fresh exchange
+		// replaces it.
+		s.logger.Warn("[Tokens] Stored tokens unreadable, exchanging again", "shop", shop, "error", err)
 	case err != nil:
 		return false, err
 	case !install.NeedsReauth && !install.Uninstalled && install.AccessToken != "":
@@ -70,7 +74,7 @@ func (s *Service) EnsureInstall(ctx context.Context, shop, sessionToken string) 
 func (s *Service) AccessToken(ctx context.Context, shop string) (string, error) {
 	install, err := s.store.GetInstall(ctx, shop)
 	if err != nil {
-		if errors.Is(err, store.ErrShopNotFound) {
+		if errors.Is(err, store.ErrShopNotFound) || errors.Is(err, store.ErrTokensUnreadable) {
 			return "", ErrNeedsReauth
 		}
 		return "", err
@@ -110,7 +114,7 @@ func (s *Service) refreshLocked(ctx context.Context, shop, staleToken string) (s
 	err := s.store.WithShopLock(ctx, shop, func(ctx context.Context, locked store.LockedShop) error {
 		install, err := locked.Get(ctx)
 		if err != nil {
-			if errors.Is(err, store.ErrShopNotFound) {
+			if errors.Is(err, store.ErrShopNotFound) || errors.Is(err, store.ErrTokensUnreadable) {
 				return ErrNeedsReauth
 			}
 			return err

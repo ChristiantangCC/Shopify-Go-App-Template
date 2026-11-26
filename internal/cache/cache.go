@@ -30,7 +30,7 @@ func Connect(ctx context.Context, redisURL string, logger *slog.Logger) (*Cache,
 	}
 	rdb := redis.NewClient(opts)
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		rdb.Close()
+		_ = rdb.Close()
 		return nil, fmt.Errorf("cache: %w", err)
 	}
 	return &Cache{rdb: rdb, logger: logger}, nil
@@ -44,6 +44,15 @@ func (c *Cache) Close() error {
 	return c.rdb.Close()
 }
 
+// Client exposes the Redis client for libraries that take one (the App
+// Proxy's shared rate-limit counter). It is nil when caching is off.
+func (c *Cache) Client() *redis.Client {
+	if c == nil {
+		return nil
+	}
+	return c.rdb
+}
+
 // Ping reports whether Redis answers, for the health check.
 func (c *Cache) Ping(ctx context.Context) error {
 	if c == nil {
@@ -52,17 +61,16 @@ func (c *Cache) Ping(ctx context.Context) error {
 	return c.rdb.Ping(ctx).Err()
 }
 
-// Delete drops keys, for invalidating after a write. A failure is logged and
-// returned; the entry then expires on its TTL.
-func (c *Cache) Delete(ctx context.Context, keys ...string) error {
+// Delete drops keys, for invalidating after a write. It never fails the
+// write it follows: a Redis error is logged and the entry expires on its
+// TTL instead.
+func (c *Cache) Delete(ctx context.Context, keys ...string) {
 	if c == nil || len(keys) == 0 {
-		return nil
+		return
 	}
 	if err := c.rdb.Del(ctx, keys...).Err(); err != nil {
 		c.logger.Warn("[Cache] Delete failed", "keys", keys, "error", err)
-		return fmt.Errorf("cache: %w", err)
 	}
-	return nil
 }
 
 // GetOrLoad returns the cached value for key, or calls load, caches its

@@ -40,6 +40,17 @@ jobs:
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
       - name: go vet
         run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          # Build with the setup-go toolchain: release binaries can lag the
+          # Go version go.mod targets, and golangci-lint refuses to run then.
+          install-mode: goinstall
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
+      # Includes TestMigrationsMatchModels: models and SQL migrations must
+      # produce the same schema.
       - name: go test
         run: go test -race ./...
         env:
@@ -55,10 +66,23 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
+      - name: install
+        run: bun install --frozen-lockfile
+      - name: prettier
+        run: bun run format:check
+      - name: tests
+        run: bun run test:frontend
       - name: build (includes typecheck)
+        run: bun run frontend:build
+      # The Go binary embeds the committed dist/, and Vite's output is
+      # deterministic, so a fresh build must reproduce it byte for byte.
+      - name: committed dist matches the source
         run: |
-          bun install --frozen-lockfile
-          bun run frontend:build
+          git add --all web/frontend/dist
+          git diff --cached --exit-code --stat web/frontend/dist || {
+            echo "web/frontend/dist is stale: run 'bun run frontend:build' and commit it."
+            exit 1
+          }
       - name: Shopify config files parse
         run: bun run check:toml
 

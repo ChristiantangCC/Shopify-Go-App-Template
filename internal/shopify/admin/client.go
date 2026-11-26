@@ -56,9 +56,19 @@ type Client struct {
 	backoff func(n int) time.Duration
 }
 
+// Option adjusts a Client at construction.
+type Option func(*Client)
+
+// WithEndpoint sends every shop's requests to the URL endpoint returns
+// instead of https://<shop>/admin/api/<version>/graphql.json. Tests use it
+// to point the client at a fake Admin API.
+func WithEndpoint(endpoint func(shop string) string) Option {
+	return func(c *Client) { c.endpoint = endpoint }
+}
+
 // New creates the client.
-func New(apiVersion string, tokens TokenSource) *Client {
-	return &Client{
+func New(apiVersion string, tokens TokenSource, opts ...Option) *Client {
+	client := &Client{
 		apiVersion: apiVersion,
 		tokens:     tokens,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
@@ -67,6 +77,10 @@ func New(apiVersion string, tokens TokenSource) *Client {
 		},
 		backoff: func(n int) time.Duration { return time.Duration(1<<(n-1)) * 500 * time.Millisecond },
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
 }
 
 // GraphQLError is one entry of a GraphQL `errors` array.
