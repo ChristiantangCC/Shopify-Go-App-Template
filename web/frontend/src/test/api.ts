@@ -17,7 +17,8 @@ export interface FakeCall {
 /**
  * Stubs fetch with a fake app API. routes maps "METHOD /path" to an answer,
  * or to a function of the call for answers that change. Unknown routes
- * answer 404 so a missing stub fails loudly. Returns the recorded calls.
+ * answer 404 so a missing stub fails loudly. Errors use the API's
+ * problem+json shape. Returns the recorded calls.
  */
 export const fakeApi = (
   routes: Record<string, FakeResponse | ((call: FakeCall) => FakeResponse)>,
@@ -25,20 +26,28 @@ export const fakeApi = (
   const calls: FakeCall[] = [];
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (input: string, init?: RequestInit) => {
-      const headers = new Headers(init?.headers);
+    vi.fn(async (input: Request | string, init?: RequestInit) => {
+      const request =
+        typeof input === 'string' ? new Request(new URL(input, location.href), init) : input;
+      const url = new URL(request.url);
+      const text = await request.text();
       const call: FakeCall = {
-        method: init?.method ?? 'GET',
-        path: input,
-        authorization: headers.get('Authorization'),
-        body: typeof init?.body === 'string' ? init.body : null,
+        method: request.method,
+        path: url.pathname + url.search,
+        authorization: request.headers.get('Authorization'),
+        body: text === '' ? null : text,
       };
       calls.push(call);
-      const route = routes[`${call.method} ${new URL(input, 'https://app.example.com').pathname}`];
+      const route = routes[`${call.method} ${url.pathname}`];
       const answer = typeof route === 'function' ? route(call) : (route ?? { status: 404 });
-      return new Response(JSON.stringify(answer.body ?? {}), {
-        status: answer.status ?? 200,
-        headers: { 'Content-Type': 'application/json' },
+      const status = answer.status ?? 200;
+      const body =
+        answer.body ?? (status >= 400 ? { title: 'Error', status, detail: `fake ${status}` } : {});
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: {
+          'Content-Type': status >= 400 ? 'application/problem+json' : 'application/json',
+        },
       });
     }),
   );

@@ -1,5 +1,7 @@
 .env
 /server
+# air's build output (.air.toml).
+/tmp/
 node_modules/
 .shopify/
 # Fetched by `bun run codegen`; the generated Go is committed, the schema is not.

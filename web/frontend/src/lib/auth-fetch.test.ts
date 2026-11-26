@@ -2,38 +2,36 @@ import { describe, expect, it } from 'vitest';
 
 import { fakeApi } from '../test/api';
 import { shopifyMock } from '../test/setup';
-import { authFetch, bootstrapSession } from './auth-fetch';
+import { api, apiError } from './api';
+import { bootstrapSession } from './auth-fetch';
 
 const session = { shop: 'example.myshopify.com', isNew: false, billingEnabled: false };
+const settings = { notificationEmail: '', syncEnabled: true };
 
-describe('authFetch', () => {
+describe('api client', () => {
   it('sends a fresh session token as a bearer token', async () => {
-    const calls = fakeApi({ 'GET /api/admin/settings': { body: {} } });
+    const calls = fakeApi({ 'GET /api/admin/settings': { body: settings } });
 
-    const response = await authFetch('/api/admin/settings');
+    const { data } = await api.GET('/api/admin/settings');
 
-    expect(response.status).toBe(200);
+    expect(data).toEqual(settings);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.authorization).toBe('Bearer session-token-1');
   });
 
-  it('keeps the caller’s own headers', async () => {
-    const calls = fakeApi({ 'PUT /api/admin/settings': { body: {} } });
+  it('sends the typed body as JSON', async () => {
+    const calls = fakeApi({ 'PUT /api/admin/settings': { body: settings } });
 
-    await authFetch('/api/admin/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    });
+    await api.PUT('/api/admin/settings', { body: settings });
 
     expect(calls[0]?.authorization).toBe('Bearer session-token-1');
-    expect(calls[0]?.body).toBe('{}');
+    expect(JSON.parse(calls[0]?.body ?? '')).toEqual(settings);
   });
 
-  it('re-runs the session bootstrap after a 401 and retries once with a new token', async () => {
+  it('re-runs the session bootstrap after a 401 and retries once, body included', async () => {
     let attempts = 0;
     const calls = fakeApi({
-      'GET /api/admin/products': () => (++attempts === 1 ? { status: 401 } : { body: {} }),
+      'PUT /api/admin/settings': () => (++attempts === 1 ? { status: 401 } : { body: settings }),
       'POST /api/admin/session': { body: session },
     });
     shopifyMock.idToken
@@ -41,35 +39,42 @@ describe('authFetch', () => {
       .mockResolvedValueOnce('for-bootstrap')
       .mockResolvedValueOnce('for-retry');
 
-    const response = await authFetch('/api/admin/products');
+    const { data } = await api.PUT('/api/admin/settings', { body: settings });
 
-    expect(response.status).toBe(200);
+    expect(data).toEqual(settings);
     expect(calls.map((call) => `${call.method} ${call.path} ${call.authorization}`)).toEqual([
-      'GET /api/admin/products Bearer expired',
+      'PUT /api/admin/settings Bearer expired',
       'POST /api/admin/session Bearer for-bootstrap',
-      'GET /api/admin/products Bearer for-retry',
+      'PUT /api/admin/settings Bearer for-retry',
     ]);
+    expect(calls[2]?.body).toBe(calls[0]?.body);
   });
 
   it('gives up after one retry instead of looping', async () => {
     const calls = fakeApi({
-      'GET /api/admin/products': { status: 401 },
+      'GET /api/admin/settings': { status: 401 },
       'POST /api/admin/session': { body: session },
     });
 
-    const response = await authFetch('/api/admin/products');
+    const { error, response } = await api.GET('/api/admin/settings');
 
     expect(response.status).toBe(401);
-    expect(calls.filter((call) => call.path === '/api/admin/products')).toHaveLength(2);
+    expect(error?.status).toBe(401);
+    expect(calls.filter((call) => call.path === '/api/admin/settings')).toHaveLength(2);
   });
 
-  it('passes other errors straight through', async () => {
-    const calls = fakeApi({ 'GET /api/admin/products': { status: 502 } });
+  it('turns other errors into the server’s message', async () => {
+    const calls = fakeApi({
+      'PUT /api/admin/settings': {
+        status: 422,
+        body: { title: 'Unprocessable Entity', status: 422, detail: 'bad email' },
+      },
+    });
 
-    const response = await authFetch('/api/admin/products');
+    const { error, response } = await api.PUT('/api/admin/settings', { body: settings });
 
-    expect(response.status).toBe(502);
     expect(calls).toHaveLength(1);
+    expect(apiError(error, response).message).toBe('bad email');
   });
 });
 
@@ -79,8 +84,9 @@ describe('bootstrapSession', () => {
     await expect(bootstrapSession()).resolves.toEqual(session);
   });
 
-  it('throws when the server refuses', async () => {
-    fakeApi({ 'POST /api/admin/session': { status: 502 } });
-    await expect(bootstrapSession()).rejects.toThrow('session bootstrap failed: 502');
+  it('throws when the server refuses, without bootstrapping again', async () => {
+    const calls = fakeApi({ 'POST /api/admin/session': { status: 401 } });
+    await expect(bootstrapSession()).rejects.toThrow('session bootstrap failed: 401');
+    expect(calls).toHaveLength(1);
   });
 });

@@ -1,5 +1,6 @@
 .env
 .git
 /server
+/tmp
 web/frontend/node_modules
 .shopify

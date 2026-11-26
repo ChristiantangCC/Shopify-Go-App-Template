@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ComponentChildren } from 'preact';
 
-import { authFetch } from '../lib/auth-fetch';
+import { api, apiError, type Schema } from '../lib/api';
 
 const code = {
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -29,16 +29,12 @@ const Feature = ({ title, badge, children }: FeatureProps) => (
   </div>
 );
 
-interface SubscriptionsResponse {
-  topics: Record<string, boolean>;
-}
-
-const fetchSubscriptions = async (): Promise<SubscriptionsResponse> => {
-  const response = await authFetch('/api/admin/webhooks/subscriptions');
-  if (!response.ok) {
-    throw new Error(`subscriptions request failed: ${response.status}`);
+const fetchSubscriptions = async (): Promise<Schema<'SubscriptionState'>> => {
+  const { data, error, response } = await api.GET('/api/admin/webhooks/subscriptions');
+  if (!data) {
+    throw apiError(error, response);
   }
-  return (await response.json()) as SubscriptionsResponse;
+  return data;
 };
 
 /**
@@ -55,15 +51,13 @@ const DynamicSubscriptionDemo = () => {
 
   const toggle = useMutation({
     mutationFn: async (subscribed: boolean) => {
-      const response = await authFetch('/api/admin/webhooks/subscriptions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: demoTopic, subscribed }),
+      const { data, error, response } = await api.POST('/api/admin/webhooks/subscriptions', {
+        body: { topic: demoTopic, subscribed },
       });
-      if (!response.ok) {
-        throw new Error(`toggle failed: ${response.status}`);
+      if (!data) {
+        throw apiError(error, response);
       }
-      return subscribed;
+      return data.subscribed;
     },
     onSuccess: (subscribed) => {
       shopify.toast.show(
@@ -110,15 +104,11 @@ const DynamicSubscriptionDemo = () => {
 const BulkDemo = () => {
   const start = useMutation({
     mutationFn: async () => {
-      const response = await authFetch('/api/admin/bulk/products', { method: 'POST' });
-      const body = (await response.json().catch(() => null)) as {
-        operationId?: string;
-        error?: string;
-      } | null;
-      if (!response.ok) {
-        throw new Error(body?.error ?? `bulk start failed: ${response.status}`);
+      const { data, error, response } = await api.POST('/api/admin/bulk/products');
+      if (!data) {
+        throw apiError(error, response);
       }
-      return body?.operationId ?? '';
+      return data.operationId;
     },
     onSuccess: () => {
       shopify.toast.show('Bulk export started, watch the server log');
@@ -246,9 +236,9 @@ export const HomePage = () => {
             <Path>src/routes.tsx</Path>. The router and the admin nav both read that registry.
           </s-list-item>
           <s-list-item>
-            Add an API route: a handler in <Path>internal/handlers/</Path>, mounted under{' '}
-            <Path>/api/admin</Path> in <Path>cmd/server/main.go</Path>, called with{' '}
-            <Path>authFetch</Path>.
+            Add an API route: a huma operation in <Path>internal/handlers/</Path>, registered in{' '}
+            <Path>API.Mount</Path>. Run <Path>bun run codegen:api</Path> and call it from the typed
+            client: <Path>api.GET('/api/admin/…')</Path>.
           </s-list-item>
           <s-list-item>
             Explore the API: press <Path>g</Path> in the dev terminal for GraphiQL against this

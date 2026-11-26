@@ -74,7 +74,9 @@ trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
 
 # The server gets everything from .env (BILLING_ENABLED, API keys, log
 # levels, whatever you add), with the CLI-provided values on top. It must
-# listen on the port the CLI proxies the tunnel to.
+# listen on the port the CLI proxies the tunnel to. air (.air.toml)
+# rebuilds and restarts it on every Go or migration change; the tunnel,
+# Vite and the databases keep running.
 set -a
 source .env
 set +a
@@ -84,4 +86,4 @@ HOST="$HOST" \
 PORT="${PORT:-8080}" \
 FRONTEND_DEV_URL="http://localhost:5173" \
 LOG_FORMAT="${LOG_FORMAT:-text}" \
-  go run ./cmd/server
+  go tool air
