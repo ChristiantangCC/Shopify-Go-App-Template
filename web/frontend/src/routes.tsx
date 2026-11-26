@@ -1,8 +1,8 @@
-import type { ComponentType } from "preact";
+import type { ComponentType } from 'preact';
 
-import { BillingPage } from "./pages/billing";
-import { HomePage } from "./pages/home";
-import { SettingsPage } from "./pages/settings";
+import { BillingPage } from './pages/billing';
+import { HomePage } from './pages/home';
+import { SettingsPage } from './pages/settings';
 
 /** One embedded page: a path, its component, and how the nav shows it. */
 export interface Route {
@@ -19,11 +19,11 @@ export interface Route {
  * page here is all it takes to route it and surface it in the nav.
  */
 export const ROUTES: Route[] = [
-  { path: "/", label: "Home", component: HomePage },
-  { path: "/settings", label: "Settings", component: SettingsPage },
+  { path: '/', label: 'Home', component: HomePage },
+  { path: '/settings', label: 'Settings', component: SettingsPage },
   {
-    path: "/billing",
-    label: "Plans & Billing",
+    path: '/billing',
+    label: 'Plans & Billing',
     component: BillingPage,
     requiresBilling: true,
   },

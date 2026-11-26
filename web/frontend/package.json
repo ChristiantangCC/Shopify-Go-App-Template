@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.108.0",
@@ -16,7 +20,11 @@
     "@preact/preset-vite": "^2.10.6",
     "@shopify/app-bridge-types": "0.7.4",
     "@shopify/polaris-types": "2.0.0",
+    "@testing-library/preact": "3.2.6",
+    "happy-dom": "21.0.4",
+    "prettier": "3.10.1",
     "typescript": "^7.0.2",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "vitest": "5.1.2"
   }
 }

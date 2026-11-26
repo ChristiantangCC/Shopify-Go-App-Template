@@ -39,7 +39,9 @@ func tokenResponse() map[string]any {
 func TestExchangeRequestsAnExpiringToken(t *testing.T) {
 	var form url.Values
 	client, shop := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse form: %v", err)
+		}
 		form = r.PostForm
 		json.NewEncoder(w).Encode(tokenResponse())
 	})
@@ -77,7 +79,9 @@ func TestExchangeRequestsAnExpiringToken(t *testing.T) {
 func TestRefreshUsesTheRefreshGrant(t *testing.T) {
 	var form url.Values
 	client, shop := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		r.ParseForm()
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse form: %v", err)
+		}
 		form = r.PostForm
 		json.NewEncoder(w).Encode(tokenResponse())
 	})
@@ -107,5 +111,15 @@ func TestExchangeRejectsAnEmptyResponse(t *testing.T) {
 	})
 	if _, err := client.Exchange(context.Background(), shop, "tok"); err == nil {
 		t.Fatal("expected an error")
+	}
+}
+
+func TestExchangeMapsA401ToErrExchangeRejected(t *testing.T) {
+	client, shop := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	_, err := client.Exchange(context.Background(), shop, "tok")
+	if err != ErrExchangeRejected {
+		t.Fatalf("err = %v, want ErrExchangeRejected (not a refresh-token error)", err)
 	}
 }

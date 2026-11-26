@@ -7,19 +7,22 @@
 > [Shopify-Go-Service-App-Template](https://github.com/ChristiantangCC/Shopify-Go-Service-App-Template)
 > instead; it is a tenth of this.
 
-One Go binary, one Postgres and one Redis. The binary serves the embedded
-admin UI (Preact + Polaris web components), its session-token-guarded API,
-the webhook intake, App Proxy routes and the background workers. Postgres
-holds the data and the job queue; Redis is only a cache. No second process.
+One Go binary and one Postgres, plus Redis when you want it. The binary
+serves the embedded admin UI (Preact + Polaris web components), its
+session-token-guarded API, the webhook intake, App Proxy routes and the
+background workers. Postgres holds the data and the job queue; Redis is
+optional and only caches and shares the App Proxy rate limit. No second
+process.
 
 What is already solved:
 
 - **Install and auth.** Shopify managed install plus token exchange; there
   is no OAuth callback. Session tokens are verified on every API request.
-- **Expiring offline tokens.** Stored encrypted (AES-256-GCM), refreshed
-  before expiry behind a per-shop Postgres advisory lock, kept alive by a
-  daily job, and a rejected refresh token routes the shop through a new
-  token exchange on its next open.
+- **Expiring offline tokens.** Stored encrypted (AES-256-GCM, with key
+  rotation: see `docs/key-rotation.md`), refreshed before expiry behind a
+  per-shop Postgres advisory lock, kept alive by a daily job, and a
+  rejected refresh token routes the shop through a new token exchange on
+  its next open.
 - **Events and webhooks.** Events (API 2026-10) for static subscriptions
   every shop gets, webhooks created through the Admin API for per-shop
   ones (see [docs/subscriptions.md](docs/subscriptions.md)). Both intakes
@@ -40,9 +43,9 @@ What is already solved:
 | Piece | Choice | Why |
 |---|---|---|
 | HTTP | chi | stdlib-shaped router, no framework |
-| Database | GORM on pgx | Go structs as the schema, queries without SQL strings, AutoMigrate at boot; GORM runs on the same pgx pool River uses |
+| Database | GORM on pgx, goose migrations | queries without SQL strings; the schema is versioned SQL in `internal/db/migrations`, applied at boot, with a test that fails when models and migrations disagree; GORM runs on the same pgx pool River uses |
 | Jobs | River | jobs live in Postgres, so webhook dedupe + enqueue commit atomically in one GORM transaction |
-| Cache | Redis (go-redis) | read-through cache for hot per-shop reads (settings, 5 minutes); never the source of truth, so an outage only means slower reads |
+| Cache | Redis (go-redis), optional | read-through cache for hot per-shop reads (installs and settings, 5 minutes) and the shared App Proxy rate limit; never the source of truth, so an outage, or no `REDIS_URL` at all, only means slower reads and a per-instance limit |
 | Frontend | Vite + Preact + TanStack Query + Polaris web components v2 | 22 KB gzipped, React mental model, Shopify's own components, typed by `@shopify/polaris-types` so a wrong prop fails the typecheck |
 | GraphQL | genqlient codegen from `.graphql` documents | compile-time safety against the Admin schema; `bun run codegen` regenerates |
 
@@ -173,15 +176,21 @@ discard for free. Add fields by extending the `ShopSettings` model, the
 
 ### A table or a query
 
-Models live in `internal/store/models.go`. Add a struct, list it in
-`Models()`, and the next server start creates its table: GORM's
-AutoMigrate runs at boot behind an advisory lock, so a rolling deploy
-migrates once. Queries go through GORM in `internal/store` (struct
-conditions and `gorm.io/gorm/clause` expressions, no SQL strings).
+Models live in `internal/store/models.go`; the schema lives in versioned
+SQL migrations in `internal/db/migrations`. A schema change is both:
 
-AutoMigrate only adds tables, columns and indexes. Dropping or renaming a
-column is a deliberate step: do it by hand (or with a one-off
-`Migrator().DropColumn`) after the code no longer reads it.
+1. `bun run db:migration add_shop_plan` creates the next numbered file
+   with `-- +goose Up` and `-- +goose Down` sections. Write the SQL.
+2. Change the model (a new struct also goes into `Models()`).
+3. `go test ./internal/db` builds one database from the migrations and one
+   from the models and fails on any column, index or constraint that
+   differs. CI runs it.
+
+Migrations are embedded in the binary and applied at boot by goose, behind
+an advisory lock, so a rolling deploy migrates once. Dropping or renaming
+a column is a migration like any other; ship it after the code no longer
+reads the column. Queries go through GORM in `internal/store` (struct
+conditions and `gorm.io/gorm/clause` expressions, no SQL strings).
 
 Avoid GORM `default:` tags on columns where the zero value is meaningful:
 GORM leaves a zero value out of the INSERT when the column has a default,
@@ -192,8 +201,11 @@ so `false` would silently become the default.
 `cache.GetOrLoad` wraps any loader: on a hit it returns the cached JSON,
 on a miss it calls the loader and stores the result for the TTL. Redis
 errors are logged and fall through to the loader. Invalidate with
-`cache.Delete` after the write, as `Store.SaveSettings` does. Never cache
-access tokens: the refresh logic depends on reading them under a lock.
+`cache.Delete` after the write, as `Store.SaveSettings` does. Installs are
+cached the same way, with tokens still sealed (Redis holds the same
+ciphertext as Postgres); the token refresh path never reads the cache, it
+re-reads the row under the shop's lock. With no `REDIS_URL`, every
+`GetOrLoad` just calls the loader.
 
 ```go
 return cache.GetOrLoad(ctx, s.cache, "shop-settings:"+shop, 5*time.Minute, func(ctx context.Context) (Settings, error) {
@@ -256,7 +268,13 @@ it. For the rare app that cannot use managed pricing, the generated
 ## Storefront and server-to-server
 
 - **App Proxy** (`/proxy/...`): signed storefront requests, verified with
-  the app secret, rate limited per customer or IP. Example: `/proxy/ping`.
+  the app secret, rate limited per customer or IP (shared through Redis
+  when it's configured). The visitor IP is read `PROXY_TRUSTED_HOPS`
+  entries from the right of `X-Forwarded-For`, so a spoofed header can't
+  dodge the limit: 2 behind Shopify plus your own reverse proxy (the
+  default), 1 with no reverse proxy. The default is unverified against a
+  real Shopify request; see `docs/app-proxy-rate-limit.md` before relying
+  on it. Example: `/proxy/ping`.
 - **API keys** (`/api/service/...`): mounted only when `API_KEY` or
   `API_KEYS` is set, for Shopify Flow, cron jobs or another backend.
   Example: `/api/service/products?shop=<shop>.myshopify.com`.
@@ -267,9 +285,22 @@ it. For the rare app that cannot use managed pricing, the generated
 docker build -t my-app .
 ```
 
+Health checks:
+
+| Probe | Path | Fails when |
+|---|---|---|
+| Liveness | `/livez` | the process can't serve HTTP (never on a dependency outage) |
+| Readiness | `/readyz` | Postgres is unreachable, or the instance is shutting down |
+| Uptime monitor | `/health` | same as `/readyz` |
+
+Redis is reported in the `/readyz` body but never fails it: every Redis
+use falls back. On SIGTERM, `/readyz` turns 503 at once; set
+`SHUTDOWN_DRAIN_DELAY` (e.g. `10s`) so the load balancer drains the
+instance before its listener closes.
+
 The image is distroless, runs as nonroot and listens on 8080. Give it the
-variables from `.env.example`, a Postgres, a Redis, and HTTPS termination in front
-(Caddy, Traefik, a PaaS). Migrations run at boot.
+variables from `.env.example`, a Postgres, optionally a Redis, and HTTPS
+termination in front (Caddy, Traefik, a PaaS). Migrations run at boot.
 
 The production app is its own entry in the Dev Dashboard, with its own
 credentials, exactly like the dev app. Put its client id in
@@ -292,8 +323,11 @@ Same command whenever production scopes, webhook topics or URLs change.
 | `bun run app:deploy:prod` | release the production config |
 | `bun run new-app <dir> <module> <name>` | stamp a new app from the template |
 | `bun run test` | `go test ./...` |
+| `bun run test:frontend` | Vitest over the frontend |
 | `bun run typecheck` | frontend type check |
 | `bun run db:up` | just the dev Postgres and Redis |
+| `bun run db:migration <name>` | create the next numbered SQL migration |
+| `bun run format` | Prettier over the frontend (`format:check` in CI) |
 
 ## Tests
 
@@ -302,8 +336,8 @@ go test ./...
 ```
 
 Unit tests cover every security piece: session token verification
-(including alg confusion), webhook and App Proxy HMAC, token encryption,
-API keys and the Admin client's retry rules. The integration tests (token
+(including alg confusion), webhook and App Proxy HMAC, token encryption
+and key rotation, API keys and the Admin client's retry rules. The integration tests (token
 refresh single-flight under concurrency, install lifecycle, webhook
 dedupe, job insert inside a GORM transaction) run when `TEST_DATABASE_URL`
 points at a Postgres; the cache tests run when `TEST_REDIS_URL` points at a
@@ -313,6 +347,19 @@ Redis. CI provides both; locally:
 docker compose up -d --wait postgres redis
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/app?sslmode=disable TEST_REDIS_URL=redis://localhost:6379/0 go test ./...
 ```
+
+The frontend has its own suite (Vitest, happy-dom, Testing Library):
+
+```bash
+bun run test:frontend
+```
+
+It covers `authFetch`'s token and 401-retry handling, the app's session
+bootstrap and nav, and the Settings page. Fetch and App Bridge's `shopify`
+global are stubbed (`web/frontend/src/test/`); Polaris web components load
+from Shopify's CDN at runtime and aren't loaded in tests, so tests assert
+on the attributes a page sets on them. Test files sit next to their
+source as `*.test.ts(x)`.
 
 ## License
 

@@ -69,7 +69,9 @@ type Deps struct {
 }
 
 // HandlerFunc processes one delivery inside a background job. Returning an
-// error makes the queue retry with backoff.
+// error makes the queue retry with backoff (up to 10 attempts); wrap it in
+// retry.Permanent (internal/retry) when resending can never succeed, and
+// the job is cancelled instead.
 type HandlerFunc func(ctx context.Context, deps Deps, delivery Delivery) error
 
 // Registry maps a subscription handle (the `handle` of an
@@ -96,7 +98,7 @@ type HandlerFunc func(ctx context.Context, deps Deps, delivery Delivery) error
 //			} `json:"product"`
 //		}
 //		if err := json.Unmarshal(d.Data, &data); err != nil {
-//			return err
+//			return retry.Permanent(err)
 //		}
 //		deps.Logger.Info("[Events] Price changed", "shop", d.Shop, "product", data.Product.ID)
 //		return nil

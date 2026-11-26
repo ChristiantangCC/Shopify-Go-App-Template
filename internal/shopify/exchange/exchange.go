@@ -21,6 +21,15 @@ import (
 // forward is a new token exchange, which needs a merchant to open the app.
 var ErrInvalidRefreshToken = errors.New("exchange: refresh token no longer valid")
 
+// ErrExchangeRejected means Shopify refused a token exchange: the session
+// token was not accepted for this app (wrong client secret, a token for
+// another app) or the request was not authorised. Retrying won't help.
+var ErrExchangeRejected = errors.New("exchange: Shopify rejected the token exchange")
+
+// errRejected is post's answer to a 401 or 403; Exchange and Refresh map it
+// to their own error, because the same status means different things.
+var errRejected = errors.New("rejected")
+
 // Token is one issued access token pair.
 type Token struct {
 	AccessToken string
@@ -72,6 +81,9 @@ func (c *Client) Exchange(ctx context.Context, shop, sessionToken string) (Token
 		"expiring":             {"1"},
 	}
 	token, err := c.post(ctx, shop, form)
+	if errors.Is(err, errRejected) {
+		return Token{}, ErrExchangeRejected
+	}
 	if err != nil {
 		return Token{}, fmt.Errorf("token exchange: %w", err)
 	}
@@ -88,10 +100,13 @@ func (c *Client) Refresh(ctx context.Context, shop, refreshToken string) (Token,
 		"client_secret": {c.clientSecret},
 	}
 	token, err := c.post(ctx, shop, form)
+	if errors.Is(err, errRejected) {
+		// Shopify answers 401 {"error":"invalid_request"} for a refresh
+		// token that expired, was rotated past, or belongs to a gone
+		// install.
+		return Token{}, ErrInvalidRefreshToken
+	}
 	if err != nil {
-		if errors.Is(err, ErrInvalidRefreshToken) {
-			return Token{}, err
-		}
 		return Token{}, fmt.Errorf("token refresh: %w", err)
 	}
 	return token, nil
@@ -113,13 +128,11 @@ func (c *Client) post(ctx context.Context, shop string, form url.Values) (Token,
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
 
-	// Shopify answers 401 {"error":"invalid_request"} for a refresh token
-	// that expired, was rotated past, or belongs to a gone install.
 	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
-		return Token{}, ErrInvalidRefreshToken
+		return Token{}, errRejected
 	}
 	if res.StatusCode != http.StatusOK {
-		return Token{}, fmt.Errorf("Shopify answered %d", res.StatusCode)
+		return Token{}, fmt.Errorf("shopify answered %d", res.StatusCode)
 	}
 
 	var parsed struct {

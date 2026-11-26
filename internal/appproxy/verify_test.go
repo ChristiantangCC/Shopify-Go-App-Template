@@ -77,6 +77,15 @@ func TestVerifyChecksTheShopAgainstTheApp(t *testing.T) {
 	}
 }
 
+func TestVerifyRejectsAStaleRequestBeforeCheckingTheShop(t *testing.T) {
+	checked := false
+	checkShop := func(context.Context, string) error { checked = true; return nil }
+	stale := signedQuery("example-shop.myshopify.com", now.Add(-10*time.Minute))
+	if code, _ := serve(t, stale, checkShop); code != http.StatusUnauthorized || checked {
+		t.Fatalf("stale request: code %d, CheckShop called %v", code, checked)
+	}
+}
+
 func TestVerifyRejects(t *testing.T) {
 	tampered := signedQuery("example-shop.myshopify.com", now)
 	tampered.Set("logged_in_customer_id", "43")
@@ -94,18 +103,39 @@ func TestVerifyRejects(t *testing.T) {
 }
 
 func TestRateLimitKeyIgnoresThePort(t *testing.T) {
+	key := RateLimitKey(2)
 	a := httptest.NewRequest(http.MethodPost, "/", nil)
 	a.RemoteAddr = "10.0.0.9:50001"
 	b := httptest.NewRequest(http.MethodPost, "/", nil)
 	b.RemoteAddr = "10.0.0.9:50002"
-	keyA, _ := RateLimitKey(a)
-	keyB, _ := RateLimitKey(b)
+	keyA, _ := key(a)
+	keyB, _ := key(b)
 	if keyA != keyB || keyA != "ip:10.0.0.9" {
 		t.Fatalf("keys %q %q", keyA, keyB)
 	}
-	forwarded := httptest.NewRequest(http.MethodPost, "/", nil)
-	forwarded.Header.Set("X-Forwarded-For", "203.0.113.7, 10.0.0.1")
-	if key, _ := RateLimitKey(forwarded); key != "ip:203.0.113.7" {
-		t.Fatalf("forwarded key %q", key)
+}
+
+func TestRateLimitKeyTrustsOnlyTheConfiguredHops(t *testing.T) {
+	tests := []struct {
+		name        string
+		forwarded   []string
+		trustedHops int
+		want        string
+	}{
+		{"visitor, then Shopify appended by our proxy", []string{"203.0.113.7, 23.227.38.1"}, 2, "ip:203.0.113.7"},
+		{"spoofed leading entry is ignored", []string{"6.6.6.6, 203.0.113.7, 23.227.38.1"}, 2, "ip:203.0.113.7"},
+		{"split across header lines", []string{"6.6.6.6", "203.0.113.7, 23.227.38.1"}, 2, "ip:203.0.113.7"},
+		{"no reverse proxy of our own", []string{"6.6.6.6, 203.0.113.7"}, 1, "ip:203.0.113.7"},
+		{"too short falls back to the peer", []string{"203.0.113.7"}, 2, "ip:10.0.0.9"},
+	}
+	for _, tt := range tests {
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.RemoteAddr = "10.0.0.9:50001"
+		for _, value := range tt.forwarded {
+			req.Header.Add("X-Forwarded-For", value)
+		}
+		if got, _ := RateLimitKey(tt.trustedHops)(req); got != tt.want {
+			t.Errorf("%s: key %q, want %q", tt.name, got, tt.want)
+		}
 	}
 }

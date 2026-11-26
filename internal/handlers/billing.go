@@ -16,8 +16,8 @@ import (
 // billing path is Shopify's managed pricing: the response includes the
 // pricing-plans page URL when the app handle is configured, and the
 // frontend sends merchants there. appSubscriptionCreate (in
-// internal/shopify/graphql/billing.go) exists for apps that cannot use
-// managed pricing.
+// internal/shopify/graphql/operations/billing.graphql) exists for apps that
+// cannot use managed pricing.
 type BillingStatus struct {
 	Admin     *admin.Client
 	AppHandle string

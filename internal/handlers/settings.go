@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -21,8 +22,17 @@ type Settings struct {
 	Store *store.Store
 	// River queues a webhook re-sync after a save, because dynamic
 	// subscriptions can depend on settings (see the registry's When).
-	River  *river.Client[pgx.Tx]
+	River *river.Client[pgx.Tx]
+	// Host is the app's public base URL, passed on to the sync job.
+	Host   string
 	Logger *slog.Logger
+}
+
+// validEmail accepts a bare address ("ops@example.com"), not a display-name
+// form like "Ops <ops@example.com>": the value is used as a recipient as is.
+func validEmail(value string) bool {
+	address, err := mail.ParseAddress(value)
+	return err == nil && address.Address == value
 }
 
 // Get handles GET /api/admin/settings.
@@ -55,7 +65,7 @@ func (h Settings) Put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	settings.NotificationEmail = strings.TrimSpace(settings.NotificationEmail)
-	if settings.NotificationEmail != "" && !strings.Contains(settings.NotificationEmail, "@") {
+	if settings.NotificationEmail != "" && !validEmail(settings.NotificationEmail) {
 		writeError(w, http.StatusUnprocessableEntity, "notificationEmail must be an email address")
 		return
 	}
@@ -66,7 +76,7 @@ func (h Settings) Put(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "try again")
 		return
 	}
-	if _, err := h.River.Insert(r.Context(), jobs.SyncWebhooksArgs{Shop: session.Shop}, nil); err != nil {
+	if _, err := h.River.Insert(r.Context(), jobs.SyncWebhooksArgs{Shop: session.Shop, Host: h.Host}, nil); err != nil {
 		// The save stands; the next app open re-syncs anyway.
 		h.Logger.Warn("[Settings] Could not queue webhook sync", "shop", session.Shop, "error", err)
 	}

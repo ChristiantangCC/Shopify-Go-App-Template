@@ -19,6 +19,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/logging"
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/retry"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/events"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/tokens"
@@ -34,6 +35,28 @@ const webhookDeliveryRetention = 72 * time.Hour
 // before the keep-alive job rotates the pair.
 const refreshAhead = 7 * 24 * time.Hour
 
+// Attempt limits per job kind. River's default (25, with attempt^4 second
+// backoff) keeps retrying for weeks; these stop much sooner. With that
+// backoff, 10 attempts span roughly three hours.
+const (
+	deliveryMaxAttempts = 10
+	syncMaxAttempts     = 5
+	periodicMaxAttempts = 3
+)
+
+// syncWindow is how long one app open's webhook sync covers later opens of
+// the same shop: opening the app repeatedly queues one sync, not one each.
+const syncWindow = 10 * time.Minute
+
+// finish turns a handler's error into the job's outcome: retry.Permanent
+// errors cancel the job, everything else retries with backoff.
+func finish(err error) error {
+	if retry.IsPermanent(err) {
+		return river.JobCancel(err)
+	}
+	return err
+}
+
 // WebhookArgs processes one verified webhook delivery. RequestID is the
 // intake request's id, so the HTTP log line and the job's log line connect.
 type WebhookArgs struct {
@@ -46,6 +69,11 @@ type WebhookArgs struct {
 
 // Kind names the job type in the river_job table.
 func (WebhookArgs) Kind() string { return "webhook-delivery" }
+
+// InsertOpts caps retries for every webhook delivery job.
+func (WebhookArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: deliveryMaxAttempts}
+}
 
 // WebhookWorker dispatches a delivery to its registry handler.
 type WebhookWorker struct {
@@ -61,12 +89,12 @@ func (w *WebhookWorker) Work(ctx context.Context, job *river.Job[WebhookArgs]) e
 		return nil
 	}
 	w.deps.Logger.Info("[Jobs] Webhook delivery", "topic", job.Args.Topic, "shop", job.Args.Shop, "req", logging.ShortID(job.Args.RequestID), "attempt", job.Attempt)
-	return registration.Handle(ctx, w.deps, webhooks.Delivery{
+	return finish(registration.Handle(ctx, w.deps, webhooks.Delivery{
 		Shop:      job.Args.Shop,
 		Topic:     job.Args.Topic,
 		WebhookID: job.Args.WebhookID,
 		Payload:   job.Args.Payload,
-	})
+	}))
 }
 
 // EventArgs processes one verified Events delivery. Payload is the raw body.
@@ -82,6 +110,11 @@ type EventArgs struct {
 
 // Kind names the job type.
 func (EventArgs) Kind() string { return "event-delivery" }
+
+// InsertOpts caps retries for every Events delivery job.
+func (EventArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: deliveryMaxAttempts}
+}
 
 // EventWorker dispatches an Events delivery to its registry handler.
 type EventWorker struct {
@@ -103,7 +136,7 @@ func (w *EventWorker) Work(ctx context.Context, job *river.Job[EventArgs]) error
 		return nil
 	}
 	w.deps.Logger.Info("[Jobs] Event delivery", "handle", job.Args.Handle, "topic", job.Args.Topic, "action", job.Args.Action, "shop", job.Args.Shop, "req", logging.ShortID(job.Args.RequestID), "attempt", job.Attempt)
-	return handler(ctx, w.deps, events.Delivery{
+	return finish(handler(ctx, w.deps, events.Delivery{
 		Shop:           job.Args.Shop,
 		Topic:          job.Args.Topic,
 		Action:         job.Args.Action,
@@ -112,16 +145,36 @@ func (w *EventWorker) Work(ctx context.Context, job *river.Job[EventArgs]) error
 		Data:           payload.Data,
 		FieldsChanged:  payload.FieldsChanged,
 		QueryVariables: payload.QueryVariables,
-	})
+	}))
 }
 
 // SyncWebhooksArgs reconciles one shop's dynamic subscriptions.
 type SyncWebhooksArgs struct {
 	Shop string `json:"shop"`
+	// Host is the callback base URL the sync points subscriptions at. It
+	// is part of the args so the app-open dedupe (OncePerWindow) treats a
+	// new dev tunnel as a new sync instead of skipping it.
+	Host string `json:"host,omitempty"`
 }
 
 // Kind names the job type.
 func (SyncWebhooksArgs) Kind() string { return "sync-webhooks" }
+
+// InsertOpts caps retries for webhook syncs.
+func (SyncWebhooksArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: syncMaxAttempts}
+}
+
+// OncePerWindow is the insert option for syncs triggered by an app open:
+// the same shop (and host) gets at most one sync per syncWindow, however
+// often the merchant opens the app. Syncs after a settings change insert
+// without it, because they must run.
+func OncePerWindow() *river.InsertOpts {
+	return &river.InsertOpts{
+		MaxAttempts: syncMaxAttempts,
+		UniqueOpts:  river.UniqueOpts{ByArgs: true, ByPeriod: syncWindow},
+	}
+}
 
 // SyncWebhooksWorker runs the subscriber for one shop.
 type SyncWebhooksWorker struct {
@@ -140,6 +193,11 @@ type TokenKeepAliveArgs struct{}
 
 // Kind names the job type.
 func (TokenKeepAliveArgs) Kind() string { return "token-keep-alive" }
+
+// InsertOpts caps retries; the next daily run picks up whatever failed.
+func (TokenKeepAliveArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: periodicMaxAttempts}
+}
 
 // TokenKeepAliveWorker refreshes every shop the deadline approaches for.
 type TokenKeepAliveWorker struct {
@@ -163,11 +221,78 @@ func (w *TokenKeepAliveWorker) Work(ctx context.Context, job *river.Job[TokenKee
 	return nil
 }
 
+// reencryptBatch is how many shops the re-encrypt job lists per query.
+const reencryptBatch = 100
+
+// ReencryptTokensArgs rewrites tokens sealed with an older encryption key
+// (ENCRYPTION_KEYS_OLD) with the current one. It runs at every boot, so a
+// deploy with a new ENCRYPTION_KEY re-encrypts straight away, and daily
+// after that.
+type ReencryptTokensArgs struct{}
+
+// Kind names the job type.
+func (ReencryptTokensArgs) Kind() string { return "reencrypt-tokens" }
+
+// InsertOpts caps retries; the next run picks up whatever is left.
+func (ReencryptTokensArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: periodicMaxAttempts}
+}
+
+// ReencryptTokensWorker pages through shops with stale tokens and reseals
+// each under its lock. One failing shop (say, sealed with a key that is no
+// longer configured) is logged and skipped.
+type ReencryptTokensWorker struct {
+	river.WorkerDefaults[ReencryptTokensArgs]
+	store  *store.Store
+	keyID  string
+	logger *slog.Logger
+}
+
+// Work reseals every stale shop and logs the outcome: "0 left" means the
+// old keys can be removed from ENCRYPTION_KEYS_OLD.
+func (w *ReencryptTokensWorker) Work(ctx context.Context, job *river.Job[ReencryptTokensArgs]) error {
+	var afterID int64
+	resealed, failed := 0, 0
+	for {
+		shops, err := w.store.ListShopsWithStaleTokens(ctx, afterID, reencryptBatch)
+		if err != nil {
+			return err
+		}
+		for _, shop := range shops {
+			afterID = shop.ID
+			changed, err := w.store.ResealTokens(ctx, shop.ShopDomain)
+			if err != nil {
+				failed++
+				w.logger.Error("[Jobs] Re-encrypt failed", "shop", shop.ShopDomain, "error", err)
+				continue
+			}
+			if changed {
+				resealed++
+			}
+		}
+		if len(shops) < reencryptBatch {
+			break
+		}
+	}
+	if resealed > 0 || failed > 0 {
+		w.logger.Info("[Jobs] Tokens re-encrypted", "key", w.keyID, "resealed", resealed, "failed", failed)
+	}
+	if failed == 0 {
+		w.logger.Info("[Jobs] Every token is sealed with the current key", "key", w.keyID)
+	}
+	return nil
+}
+
 // PruneWebhookDeliveriesArgs clears old dedupe rows.
 type PruneWebhookDeliveriesArgs struct{}
 
 // Kind names the job type.
 func (PruneWebhookDeliveriesArgs) Kind() string { return "prune-webhook-deliveries" }
+
+// InsertOpts caps retries; the next hourly run picks up whatever failed.
+func (PruneWebhookDeliveriesArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{MaxAttempts: periodicMaxAttempts}
+}
 
 // PruneWebhookDeliveriesWorker deletes dedupe rows past retention.
 type PruneWebhookDeliveriesWorker struct {
@@ -195,7 +320,9 @@ type Options struct {
 	Admin      *admin.Client
 	Tokens     *tokens.Service
 	Subscriber *webhooks.Subscriber
-	Logger     *slog.Logger
+	// KeyID is the current encryption key's id, for the re-encrypt logs.
+	KeyID  string
+	Logger *slog.Logger
 }
 
 // NewClient builds the River client with every worker and periodic job
@@ -207,6 +334,7 @@ func NewClient(opts Options) (*river.Client[pgx.Tx], error) {
 	river.AddWorker(workers, &SyncWebhooksWorker{subscriber: opts.Subscriber})
 	river.AddWorker(workers, &TokenKeepAliveWorker{store: opts.Store, tokens: opts.Tokens, logger: opts.Logger})
 	river.AddWorker(workers, &PruneWebhookDeliveriesWorker{store: opts.Store, logger: opts.Logger})
+	river.AddWorker(workers, &ReencryptTokensWorker{store: opts.Store, keyID: opts.KeyID, logger: opts.Logger})
 
 	client, err := river.NewClient(riverpgxv5.New(opts.Pool), &river.Config{
 		// River's own bookkeeping (producer counts, leadership) logs at
@@ -226,6 +354,11 @@ func NewClient(opts Options) (*river.Client[pgx.Tx], error) {
 				river.PeriodicInterval(time.Hour),
 				func() (river.JobArgs, *river.InsertOpts) { return PruneWebhookDeliveriesArgs{}, nil },
 				nil,
+			),
+			river.NewPeriodicJob(
+				river.PeriodicInterval(24*time.Hour),
+				func() (river.JobArgs, *river.InsertOpts) { return ReencryptTokensArgs{}, nil },
+				&river.PeriodicJobOpts{RunOnStart: true},
 			),
 		},
 	})

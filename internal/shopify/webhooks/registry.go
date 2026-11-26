@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/retry"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/bulk"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
@@ -41,7 +42,9 @@ type Deps struct {
 }
 
 // HandlerFunc processes one delivery inside a background job. Returning an
-// error makes the queue retry with backoff.
+// error makes the queue retry with backoff (up to 10 attempts); wrap it in
+// retry.Permanent when resending can never succeed, and the job is
+// cancelled instead.
 type HandlerFunc func(ctx context.Context, deps Deps, delivery Delivery) error
 
 // ConditionFunc decides whether one shop should have a dynamic
@@ -184,7 +187,8 @@ func handleProductsCreate(ctx context.Context, deps Deps, delivery Delivery) err
 		Title string `json:"title"`
 	}
 	if err := json.Unmarshal(delivery.Payload, &payload); err != nil {
-		return err
+		// A body that won't decode never will: cancel, don't retry.
+		return retry.Permanent(err)
 	}
 	deps.Logger.Info("[Webhooks] Product created", "shop", delivery.Shop, "productId", payload.ID, "title", payload.Title)
 	return nil
@@ -200,7 +204,8 @@ func handleBulkOperationFinish(ctx context.Context, deps Deps, delivery Delivery
 		ErrorCode         *string `json:"error_code"`
 	}
 	if err := json.Unmarshal(delivery.Payload, &payload); err != nil {
-		return err
+		// A body that won't decode never will: cancel, don't retry.
+		return retry.Permanent(err)
 	}
 	if payload.Status != "completed" {
 		deps.Logger.Warn("[Webhooks] Bulk operation did not complete", "shop", delivery.Shop, "operation", payload.AdminGraphqlAPIID, "status", payload.Status)
@@ -236,7 +241,8 @@ func handleProductsUpdate(ctx context.Context, deps Deps, delivery Delivery) err
 		Title string `json:"title"`
 	}
 	if err := json.Unmarshal(delivery.Payload, &payload); err != nil {
-		return err
+		// A body that won't decode never will: cancel, don't retry.
+		return retry.Permanent(err)
 	}
 	deps.Logger.Info("[Webhooks] Product updated", "shop", delivery.Shop, "productId", payload.ID, "title", payload.Title)
 	return nil

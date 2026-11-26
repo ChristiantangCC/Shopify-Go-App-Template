@@ -8,7 +8,6 @@ import (
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/bulk"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/sessiontoken"
-	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/tokens"
 )
 
 // StartProductsBulk starts the demo bulk export: every product's id and
@@ -27,13 +26,16 @@ func (h StartProductsBulk) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	operationID, err := bulk.Start(r.Context(), h.Admin, session.Shop, bulk.ProductsQuery)
-	if err != nil {
-		if errors.Is(err, tokens.ErrNeedsReauth) {
-			failAdmin(w, h.Logger, err)
-			return
-		}
-		// Usually "a bulk query is already in progress"; tell the caller.
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
+	var userErr *bulk.UserError
+	switch {
+	case errors.As(err, &userErr):
+		// Usually "a bulk query is already in progress": Shopify's own
+		// message, written for the merchant.
+		writeError(w, http.StatusUnprocessableEntity, userErr.Message)
+		return
+	case err != nil:
+		// Anything else stays in the logs; failAdmin answers generically.
+		failAdmin(w, h.Logger, err)
 		return
 	}
 	h.Logger.Info("[Bulk] Export started", "shop", session.Shop, "operation", operationID)

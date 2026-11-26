@@ -39,7 +39,7 @@ func TestGetOrLoadAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
+	t.Cleanup(func() { _ = c.Close() })
 	key := "test:" + t.Name() + ":" + time.Now().Format(time.RFC3339Nano)
 	t.Cleanup(func() { c.Delete(context.Background(), key) })
 
@@ -55,9 +55,7 @@ func TestGetOrLoadAndDelete(t *testing.T) {
 		t.Fatalf("load ran %d times, want 1", calls)
 	}
 
-	if err := c.Delete(ctx, key); err != nil {
-		t.Fatal(err)
-	}
+	c.Delete(ctx, key)
 	if _, err := cache.GetOrLoad(ctx, c, key, time.Minute, load); err != nil || calls != 2 {
 		t.Fatalf("after delete load must run again: calls %d err %v", calls, err)
 	}

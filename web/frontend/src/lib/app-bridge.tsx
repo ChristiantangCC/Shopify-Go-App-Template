@@ -6,4 +6,5 @@ import { h, type ComponentChildren } from 'preact';
 // @shopify/app-bridge-types (tsconfig "types").
 
 /** The admin sidebar: its anchors become the app's nav items. */
-export const NavMenu = ({ children }: { children: ComponentChildren }) => h('ui-nav-menu', null, children);
+export const NavMenu = ({ children }: { children: ComponentChildren }) =>
+  h('ui-nav-menu', null, children);

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/shopdomain"
 )
@@ -40,14 +41,12 @@ func NewSPA(dist fs.FS, apiKey, devURL string, logger *slog.Logger) (*SPA, error
 		if err != nil {
 			return nil, err
 		}
-		spa.proxy = httputil.NewSingleHostReverseProxy(target)
-		// Vite only answers hosts it knows; present the request as a
-		// localhost one instead of the tunnel domain.
-		director := spa.proxy.Director
-		spa.proxy.Director = func(req *http.Request) {
-			director(req)
-			req.Host = target.Host
-		}
+		// SetURL also rewrites the Host header to the target's: Vite only
+		// answers hosts it knows, so the request arrives as a localhost one
+		// instead of the tunnel domain.
+		spa.proxy = &httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(target)
+		}}
 		return spa, nil
 	}
 	raw, err := fs.ReadFile(dist, "index.html")
@@ -69,7 +68,7 @@ func (h *SPA) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// like /@vite/client and /src/main.tsx, assets, HMR) proxies
 		// straight through to Vite.
 		if r.Method == http.MethodGet && isDocumentRequest(r) {
-			h.devIndex(w)
+			h.devIndex(w, r)
 			return
 		}
 		h.proxy.ServeHTTP(w, r)
@@ -79,7 +78,7 @@ func (h *SPA) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 	if name != "" && name != "index.html" {
 		if file, err := h.Dist.Open(name); err == nil {
-			file.Close()
+			_ = file.Close()
 			// Vite builds hashed asset names, safe to cache hard.
 			if strings.HasPrefix(name, "assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -103,9 +102,18 @@ func isDocumentRequest(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("Accept"), "text/html")
 }
 
+// devClient fetches index.html from Vite. The timeout keeps a hung dev
+// server from holding the request open.
+var devClient = &http.Client{Timeout: 5 * time.Second}
+
 // devIndex serves Vite's transformed index.html with the api key injected.
-func (h *SPA) devIndex(w http.ResponseWriter) {
-	res, err := http.Get(h.DevURL + "/index.html")
+func (h *SPA) devIndex(w http.ResponseWriter, r *http.Request) {
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, h.DevURL+"/index.html", nil)
+	if err != nil {
+		http.Error(w, "bad FRONTEND_DEV_URL", http.StatusInternalServerError)
+		return
+	}
+	res, err := devClient.Do(req)
 	if err != nil {
 		h.Logger.Error("[SPA] Vite dev server unreachable", "url", h.DevURL, "error", err)
 		http.Error(w, "vite dev server unreachable, is `bun run dev` running?", http.StatusBadGateway)

@@ -180,3 +180,37 @@ func TestEnsureInstallExchangesForANewShop(t *testing.T) {
 		t.Fatalf("install %+v err %v", install, err)
 	}
 }
+
+// Tokens sealed with a key that is no longer configured can't be
+// recovered. They must count as "needs reauth": AccessToken says so, and
+// the next app open replaces them through a token exchange.
+func TestUnreadableTokensAreReplacedByAnExchange(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		grant("shpat_fresh")(w, r)
+	}))
+	t.Cleanup(server.Close)
+	shop := strings.TrimPrefix(server.URL, "https://")
+	database := testdb.Open(t)
+	ctx := context.Background()
+
+	lost, _ := crypto.New("0000000000000000000000000000000000000000000000000000000000000002")
+	seedInstall(t, store.New(database.Gorm, lost, nil), shop, time.Hour)
+
+	current, _ := crypto.New(testKey)
+	shops := store.New(database.Gorm, current, nil)
+	ex := exchange.New("client-id", "client-secret")
+	ex.HTTPClient = server.Client()
+	service := tokens.New(shops, ex, discard)
+
+	if _, err := service.AccessToken(ctx, shop); !errors.Is(err, tokens.ErrNeedsReauth) {
+		t.Fatalf("AccessToken on unreadable tokens: %v, want ErrNeedsReauth", err)
+	}
+	if _, err := service.EnsureInstall(ctx, shop, "the-id-token"); err != nil || calls.Load() != 1 {
+		t.Fatalf("EnsureInstall: err %v, exchanges %d", err, calls.Load())
+	}
+	if token, err := service.AccessToken(ctx, shop); err != nil || token != "shpat_fresh" {
+		t.Fatalf("after the exchange: %q err %v", token, err)
+	}
+}

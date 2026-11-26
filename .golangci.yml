@@ -1,0 +1,16 @@
+# golangci-lint v2. CI runs it; locally: golangci-lint run ./...
+version: "2"
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused).
+  default: standard
+  settings:
+    errcheck:
+      exclude-functions:
+        # Closing a response body or file that was only read: nothing to
+        # do with the error.
+        - (io.Closer).Close
+        # Writing a response: once headers are out, a failed write has no
+        # one left to tell.
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
