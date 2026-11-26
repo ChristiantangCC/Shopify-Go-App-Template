@@ -48,6 +48,8 @@ What is already solved:
 | Cache | Redis (go-redis), optional | read-through cache for hot per-shop reads (installs and settings, 5 minutes) and the shared App Proxy rate limit; never the source of truth, so an outage, or no `REDIS_URL` at all, only means slower reads and a per-instance limit |
 | Frontend | Vite + Preact + TanStack Query + Polaris web components v2 | 22 KB gzipped, React mental model, Shopify's own components, typed by `@shopify/polaris-types` so a wrong prop fails the typecheck |
 | GraphQL | genqlient codegen from `.graphql` documents | compile-time safety against the Admin schema; `bun run codegen` regenerates |
+| App API | huma → OpenAPI → openapi-typescript + openapi-fetch | one set of Go types defines the API; the frontend client is generated from them, so a changed field fails the typecheck |
+| Dev reload | air | Go changes rebuild and restart only the server; the tunnel and Vite keep running |
 
 ## Setup
 
@@ -84,7 +86,8 @@ terminal, then opens a tunnel, keeps the app's URLs pointed at it, asks
 which dev store to use and installs the app there. The app side of it
 (`scripts/app-dev.sh`, wired up in `shopify.web.toml`) starts Postgres
 (auto-picking a free port when 5432 is taken), Vite hot reload and the Go
-server, and persists the credentials the CLI hands over into `.env` so
+server under [air](https://github.com/air-verse/air), which rebuilds and
+restarts only the server when a Go file or migration changes, and persists the credentials the CLI hands over into `.env` so
 tests and one-off scripts see the same values.
 
 Linking a brand-new dev app makes the CLI rewrite `shopify.app.dev.toml`
@@ -115,11 +118,35 @@ third place.
 
 ### An API route
 
-Add a handler in `internal/handlers/` and mount it inside the
-`/api/admin` group in `cmd/server/main.go`. Everything in that group sits
-behind session-token verification; read the shop with
-`sessiontoken.SessionFrom(ctx)`. Call it from the frontend with
-`authFetch`.
+The JSON API is typed end to end. Routes are [huma](https://huma.rocks)
+operations on chi, huma turns their Go types into an OpenAPI spec
+(`api/openapi.yaml`), and the frontend calls them through
+[openapi-fetch](https://openapi-ts.dev/openapi-fetch/) with TypeScript
+types generated from that spec (`web/frontend/src/api/schema.ts`).
+
+1. Write the operation in `internal/handlers/`: request and response
+   types (named structs become named schemas) and a
+   `huma.Register` call, like `settings.go`. Register it in `API.Mount`
+   (`internal/handlers/api.go`) on the `/api/admin` group, where every
+   operation sits behind session-token verification; read the shop with
+   `sessionFrom(ctx)`. Return `huma.Error4xx…` for errors: they reach the
+   client as problem+json with a `detail` message.
+2. `bun run codegen:api` regenerates the spec and the TypeScript types.
+3. Call it from the frontend:
+
+   ```ts
+   const { data, error, response } = await api.GET('/api/admin/settings');
+   if (!data) throw apiError(error, response);
+   ```
+
+   Paths, query parameters, bodies and responses are all checked by the
+   typecheck. The client adds the session token and retries once after a
+   401 (`lib/auth-fetch.ts`).
+
+huma validates request bodies against the schema before your handler
+runs: unknown fields, missing fields and wrong types answer 422. CI fails
+when the committed spec or TypeScript types are stale. Webhooks, Events,
+the App Proxy and health probes are plain chi handlers, outside the spec.
 
 ### An Event or a webhook
 
@@ -277,7 +304,8 @@ it. For the rare app that cannot use managed pricing, the generated
   on it. Example: `/proxy/ping`.
 - **API keys** (`/api/service/...`): mounted only when `API_KEY` or
   `API_KEYS` is set, for Shopify Flow, cron jobs or another backend.
-  Example: `/api/service/products?shop=<shop>.myshopify.com`.
+  Example: `/api/service/products?shop=<shop>.myshopify.com`. They're in
+  `api/openapi.yaml` too, so callers can generate a client from it.
 
 ## Deploy
 
@@ -327,6 +355,7 @@ Same command whenever production scopes, webhook topics or URLs change.
 | `bun run typecheck` | frontend type check |
 | `bun run db:up` | just the dev Postgres and Redis |
 | `bun run db:migration <name>` | create the next numbered SQL migration |
+| `bun run codegen:api` | regenerate `api/openapi.yaml` and the frontend's API types |
 | `bun run format` | Prettier over the frontend (`format:check` in CI) |
 
 ## Tests
@@ -354,7 +383,7 @@ The frontend has its own suite (Vitest, happy-dom, Testing Library):
 bun run test:frontend
 ```
 
-It covers `authFetch`'s token and 401-retry handling, the app's session
+It covers the API client's token and 401-retry handling, the app's session
 bootstrap and nav, and the Settings page. Fetch and App Bridge's `shopify`
 global are stubbed (`web/frontend/src/test/`); Polaris web components load
 from Shopify's CDN at runtime and aren't loaded in tests, so tests assert

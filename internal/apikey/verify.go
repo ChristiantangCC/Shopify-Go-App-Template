@@ -66,35 +66,61 @@ func CallerFrom(ctx context.Context) (string, bool) {
 	return name, ok
 }
 
-// Verify rejects requests whose bearer token is none of keys, with 401, and
-// logs which key every accepted request used.
-func Verify(keys []Key, logger *slog.Logger) func(http.Handler) http.Handler {
-	// Hashing both sides makes each comparison constant time regardless of the
-	// given token's length.
+// WithCaller returns ctx carrying the accepted key's name, for CallerFrom.
+func WithCaller(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, callerKey{}, name)
+}
+
+// Checker matches `Authorization: Bearer <key>` header values against the
+// configured keys.
+type Checker struct {
+	keys []Key
+	// Hashing both sides makes each comparison constant time regardless of
+	// the given token's length.
+	hashes [][32]byte
+}
+
+// NewChecker prepares a Checker for keys.
+func NewChecker(keys []Key) *Checker {
 	hashes := make([][32]byte, len(keys))
 	for i, key := range keys {
 		hashes[i] = sha256.Sum256([]byte(key.Value))
 	}
+	return &Checker{keys: keys, hashes: hashes}
+}
+
+// Check returns the name of the key the header carries, or false.
+func (c *Checker) Check(authorization string) (string, bool) {
+	given, ok := strings.CutPrefix(authorization, "Bearer ")
+	got := sha256.Sum256([]byte(strings.TrimSpace(given)))
+	match := -1
+	// Compare against every key, so the time taken doesn't reveal which one
+	// matched.
+	for i := range c.hashes {
+		if subtle.ConstantTimeCompare(got[:], c.hashes[i][:]) == 1 {
+			match = i
+		}
+	}
+	if !ok || match < 0 {
+		return "", false
+	}
+	return c.keys[match].Name, true
+}
+
+// Verify rejects requests whose bearer token is none of keys, with 401, and
+// logs which key every accepted request used.
+func Verify(keys []Key, logger *slog.Logger) func(http.Handler) http.Handler {
+	checker := NewChecker(keys)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			given, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			got := sha256.Sum256([]byte(strings.TrimSpace(given)))
-			match := -1
-			// Compare against every key, so the time taken doesn't reveal
-			// which one matched.
-			for i := range hashes {
-				if subtle.ConstantTimeCompare(got[:], hashes[i][:]) == 1 {
-					match = i
-				}
-			}
-			if !ok || match < 0 {
+			caller, ok := checker.Check(r.Header.Get("Authorization"))
+			if !ok {
 				logger.Warn("[APIKey] Rejected request", "path", r.URL.Path)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
-			caller := keys[match].Name
 			logger.Info("[APIKey] Call", "caller", caller, "method", r.Method, "path", r.URL.Path)
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), callerKey{}, caller)))
+			next.ServeHTTP(w, r.WithContext(WithCaller(r.Context(), caller)))
 		})
 	}
 }

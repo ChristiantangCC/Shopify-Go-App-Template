@@ -1,28 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { authFetch } from '../lib/auth-fetch';
+import { api, apiError, type Schema } from '../lib/api';
 import { PLANS, type Plan } from '../lib/plans';
 import styles from './billing.module.css';
 
-interface Subscription {
-  id: string;
-  name: string;
-  status: string;
-  test: boolean;
-  currentPeriodEnd: string;
-}
-
-interface BillingStatus {
-  subscriptions: Subscription[];
-  pricingPlansUrl?: string;
-}
-
-const fetchBillingStatus = async (): Promise<BillingStatus> => {
-  const response = await authFetch('/api/admin/billing/status');
-  if (!response.ok) {
-    throw new Error(`billing request failed: ${response.status}`);
+const fetchBillingStatus = async (): Promise<Schema<'BillingStatus'>> => {
+  const { data, error, response } = await api.GET('/api/admin/billing/status');
+  if (!data) {
+    throw apiError(error, response);
   }
-  return (await response.json()) as BillingStatus;
+  return data;
 };
 
 interface PlanCardProps {

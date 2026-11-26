@@ -31,8 +31,6 @@ import (
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/logging"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/admin"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/exchange"
-	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/sessiontoken"
-	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/shopdomain"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/tokens"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/shopify/webhooks"
 	"github.com/ChristiantangCC/Shopify-Go-App-Template/internal/store"
@@ -129,22 +127,26 @@ func run() error {
 	router.Method(http.MethodPost, "/webhooks", handlers.Webhook{Secret: cfg.ClientSecret, Store: shops, Inserter: inserter, Logger: logger})
 	router.Method(http.MethodPost, "/events", handlers.Events{Secret: cfg.ClientSecret, Store: shops, Inserter: inserter, Logger: logger})
 
-	// Embedded admin API: every route behind session-token verification.
-	router.Route("/api/admin", func(r chi.Router) {
-		r.Use(sessiontoken.Middleware(cfg.ClientID, cfg.ClientSecret, logger))
-		r.Method(http.MethodPost, "/session", handlers.Session{Tokens: tokenService, River: riverClient, Host: cfg.Host, BillingEnabled: cfg.BillingEnabled, Logger: logger})
-		r.Method(http.MethodGet, "/products", handlers.ListProducts{Admin: adminClient, Shop: shopFromSession, Logger: logger})
-		webhookSubs := handlers.WebhookSubscriptions{Subscriber: subscriber, Logger: logger}
-		r.Get("/webhooks/subscriptions", webhookSubs.List)
-		r.Post("/webhooks/subscriptions", webhookSubs.Toggle)
-		settings := handlers.Settings{Store: shops, River: riverClient, Host: cfg.Host, Logger: logger}
-		r.Get("/settings", settings.Get)
-		r.Put("/settings", settings.Put)
-		r.Method(http.MethodPost, "/bulk/products", handlers.StartProductsBulk{Admin: adminClient, Logger: logger})
-		if cfg.BillingEnabled {
-			r.Method(http.MethodGet, "/billing/status", handlers.BillingStatus{Admin: adminClient, AppHandle: cfg.AppHandle, Logger: logger})
-		}
-	})
+	// The typed JSON API: /api/admin (session tokens) and, when keys are
+	// configured, /api/service. Its OpenAPI spec is api/openapi.yaml.
+	var apiKeys *apikey.Checker
+	if len(cfg.Keys) > 0 {
+		apiKeys = apikey.NewChecker(cfg.Keys)
+	}
+	handlers.API{
+		Tokens:         tokenService,
+		River:          riverClient,
+		Store:          shops,
+		Admin:          adminClient,
+		Subscriber:     subscriber,
+		Host:           cfg.Host,
+		ClientID:       cfg.ClientID,
+		ClientSecret:   cfg.ClientSecret,
+		BillingEnabled: cfg.BillingEnabled,
+		AppHandle:      cfg.AppHandle,
+		APIKeys:        apiKeys,
+		Logger:         logger,
+	}.Mount(router)
 
 	// App Proxy: signed storefront requests, rate limited per caller.
 	router.Route("/proxy", func(r chi.Router) {
@@ -152,14 +154,6 @@ func run() error {
 		r.Use(httprate.LimitBy(cfg.RateLimitPerMinute, time.Minute, appproxy.RateLimitKey(cfg.ProxyTrustedHops), proxyLimitOptions(redisCache, logger)...))
 		r.Method(http.MethodGet, "/ping", handlers.ProxyPing{})
 	})
-
-	// Optional server-to-server API, only mounted when keys exist.
-	if len(cfg.Keys) > 0 {
-		router.Route("/api/service", func(r chi.Router) {
-			r.Use(apikey.Verify(cfg.Keys, logger))
-			r.Method(http.MethodGet, "/products", handlers.ListProducts{Admin: adminClient, Shop: shopFromQuery, Logger: logger})
-		})
-	}
 
 	// Everything else is the embedded admin UI.
 	router.NotFound(spa.ServeHTTP)
@@ -225,22 +219,4 @@ func proxyLimitOptions(redisCache *cache.Cache, logger *slog.Logger) []httprate.
 		}))
 	}
 	return options
-}
-
-// shopFromSession reads the shop from the verified session token.
-func shopFromSession(r *http.Request) (string, error) {
-	session, ok := sessiontoken.SessionFrom(r.Context())
-	if !ok {
-		return "", errors.New("no session")
-	}
-	return session.Shop, nil
-}
-
-// shopFromQuery reads the shop a server-to-server caller asks about.
-func shopFromQuery(r *http.Request) (string, error) {
-	shop := r.URL.Query().Get("shop")
-	if !shopdomain.Valid(shop) {
-		return "", errors.New("?shop must be a <shop>.myshopify.com domain")
-	}
-	return shop, nil
 }

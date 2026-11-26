@@ -1,32 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'preact/hooks';
 
-import { authFetch } from '../lib/auth-fetch';
+import { api, apiError, type Schema } from '../lib/api';
 
-interface Settings {
-  notificationEmail: string;
-  syncEnabled: boolean;
-}
+type Settings = Schema<'Settings'>;
 
 const fetchSettings = async (): Promise<Settings> => {
-  const response = await authFetch('/api/admin/settings');
-  if (!response.ok) {
-    throw new Error(`settings request failed: ${response.status}`);
+  const { data, error, response } = await api.GET('/api/admin/settings');
+  if (!data) {
+    throw apiError(error, response);
   }
-  return (await response.json()) as Settings;
+  return data;
 };
 
 const saveSettings = async (settings: Settings): Promise<Settings> => {
-  const response = await authFetch('/api/admin/settings', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(settings),
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `save failed: ${response.status}`);
+  const { data, error, response } = await api.PUT('/api/admin/settings', { body: settings });
+  if (!data) {
+    throw apiError(error, response);
   }
-  return (await response.json()) as Settings;
+  return data;
 };
 
 /**

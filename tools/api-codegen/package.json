@@ -1,0 +1,12 @@
+{
+  "name": "api-codegen",
+  "private": true,
+  "description": "Generates web/frontend/src/api/schema.ts from api/openapi.yaml. Its own workspace because openapi-typescript drives the TypeScript 5 compiler API, while the frontend builds with TypeScript 7 (the native port, which has no JS API).",
+  "scripts": {
+    "generate": "openapi-typescript ../../api/openapi.yaml -o ../../web/frontend/src/api/schema.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -49,8 +49,9 @@ jobs:
           install-mode: goinstall
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
-      # Includes TestMigrationsMatchModels: models and SQL migrations must
-      # produce the same schema.
+      # Includes TestMigrationsMatchModels (models and SQL migrations must
+      # produce the same schema) and TestCommittedSpecIsCurrent
+      # (api/openapi.yaml must match the huma operations).
       - name: go test
         run: go test -race ./...
         env:
@@ -70,6 +71,13 @@ jobs:
         run: bun install --frozen-lockfile
       - name: prettier
         run: bun run format:check
+      - name: API types match api/openapi.yaml
+        run: |
+          bun run --cwd tools/api-codegen generate
+          git diff --exit-code --stat web/frontend/src/api/schema.ts || {
+            echo "web/frontend/src/api/schema.ts is stale: run 'bun run codegen:api' and commit it."
+            exit 1
+          }
       - name: tests
         run: bun run test:frontend
       - name: build (includes typecheck)

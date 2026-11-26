@@ -94,10 +94,31 @@ func Verify(token, clientID, clientSecret string, now time.Time) (Claims, error)
 
 type sessionKey struct{}
 
-// SessionFrom returns the verified session placed in ctx by Middleware.
+// SessionFrom returns the verified session placed in ctx by Middleware or
+// the API's session-token middleware.
 func SessionFrom(ctx context.Context) (Session, bool) {
 	session, ok := ctx.Value(sessionKey{}).(Session)
 	return session, ok
+}
+
+// WithSession returns ctx carrying a verified session, for SessionFrom.
+func WithSession(ctx context.Context, session Session) context.Context {
+	return context.WithValue(ctx, sessionKey{}, session)
+}
+
+// FromHeader verifies an `Authorization: Bearer <id_token>` header value
+// and returns the session it proves.
+func FromHeader(authorization, clientID, clientSecret string, now time.Time) (Session, error) {
+	token, ok := strings.CutPrefix(authorization, "Bearer ")
+	if !ok {
+		return Session{}, errors.New("session token: missing bearer token")
+	}
+	token = strings.TrimSpace(token)
+	claims, err := Verify(token, clientID, clientSecret, now)
+	if err != nil {
+		return Session{}, err
+	}
+	return Session{Shop: claims.Shop(), Token: token, Claims: claims}, nil
 }
 
 // Middleware rejects requests without a valid `Authorization: Bearer
@@ -106,20 +127,13 @@ func SessionFrom(ctx context.Context) (Session, bool) {
 func Middleware(clientID, clientSecret string, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			token = strings.TrimSpace(token)
-			claims, err := Verify(token, clientID, clientSecret, time.Now())
+			session, err := FromHeader(r.Header.Get("Authorization"), clientID, clientSecret, time.Now())
 			if err != nil {
 				logger.Warn("[SessionToken] Rejected request", "path", r.URL.Path, "error", err)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
-			session := Session{Shop: claims.Shop(), Token: token, Claims: claims}
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), sessionKey{}, session)))
+			next.ServeHTTP(w, r.WithContext(WithSession(r.Context(), session)))
 		})
 	}
 }
